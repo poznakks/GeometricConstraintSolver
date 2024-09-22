@@ -51,6 +51,32 @@ double Line::distanceTo(const Line& other) const {
     return std::abs(p0p1.x * n.x + p0p1.y * n.y + p0p1.z * n.z) / std::sqrt(n.x * n.x + n.y * n.y + n.z * n.z);
 }
 
+// Проверка на параллельность двух прямых
+bool Line::isParallelTo(const Line& other) const {
+    // Векторное произведение направляющих векторов
+    const Point crossProduct(
+        direction.y * other.direction.z - direction.z * other.direction.y,
+        direction.z * other.direction.x - direction.x * other.direction.z,
+        direction.x * other.direction.y - direction.y * other.direction.x
+    );
+
+    // Если результат векторного произведения равен нулю, то прямые параллельны
+    return crossProduct.x == 0 && crossProduct.y == 0 && crossProduct.z == 0;
+}
+
+// Реализация проверки принадлежности точки прямой
+bool Line::contains(const Point& p) const {
+    const Point p0p(p.x - point.x, p.y - point.y, p.z - point.z);
+
+    const double crossProductMagnitude = std::sqrt(
+        (p0p.y * direction.z - p0p.z * direction.y) * (p0p.y * direction.z - p0p.z * direction.y) +
+        (p0p.z * direction.x - p0p.x * direction.z) * (p0p.z * direction.x - p0p.x * direction.z) +
+        (p0p.x * direction.y - p0p.y * direction.x) * (p0p.x * direction.y - p0p.y * direction.x)
+    );
+
+    return crossProductMagnitude == 0;
+}
+
 std::ostream& operator<<(std::ostream& os, const Line& line) {
     os << "Line(Point: (" << line.point.x << ", " << line.point.y << ", " << line.point.z << ")"
        << ", Direction: (" << line.direction.x << ", " << line.direction.y << ", " << line.direction.z << "))";

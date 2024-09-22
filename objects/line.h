@@ -6,7 +6,7 @@
 #define LINE_H
 #include "point.h"
 
-class Line {
+class Line final {
 public:
     Point point;     // Точка на прямой
     Point direction; // Направляющий вектор
@@ -21,6 +21,12 @@ public:
 
     // Получение расстояния между двумя прямыми
     double distanceTo(const Line& other) const;
+
+    // Проверка, параллельна ли прямая другой прямой
+    bool isParallelTo(const Line& other) const;
+
+    // Проверка, принадлежит ли точка прямой
+    bool contains(const Point& p) const;
 
     friend std::ostream& operator<<(std::ostream& os, const Line& line);
 };

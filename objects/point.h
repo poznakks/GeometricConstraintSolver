@@ -7,7 +7,7 @@
 
 #include <iostream>
 
-class Point {
+class Point final {
 public:
     double x, y, z;
     explicit Point(double x = 0, double y = 0, double z = 0);

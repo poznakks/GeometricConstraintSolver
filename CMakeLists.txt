@@ -17,4 +17,16 @@ add_executable(GeometricConstraintSolver main.cpp
         constraints/parallel_constraint.h
         constraints/distance_constraint.cpp
         constraints/distance_constraint.h
+        objects/plane.cpp
+        objects/plane.h
+        objects/circle.cpp
+        objects/circle.h
+        objects/ellipse.cpp
+        objects/ellipse.h
+        objects/ellipsoid.cpp
+        objects/ellipsoid.h
+        objects/sphere.cpp
+        objects/sphere.h
+        objects/solid_body.cpp
+        objects/solid_body.h
 )
