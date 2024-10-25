@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.29)
 project(GeometricConstraintSolver)
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Поиск WxWidgets
+find_package(wxWidgets REQUIRED COMPONENTS core base)
+if(wxWidgets_USE_FILE) # not defined in CONFIG mode
+    include(${wxWidgets_USE_FILE})
+endif()
 
 add_executable(GeometricConstraintSolver main.cpp
         objects/point.cpp
@@ -30,3 +37,6 @@ add_executable(GeometricConstraintSolver main.cpp
         objects/solid_body.cpp
         objects/solid_body.h
 )
+
+# Link wxWidgets libraries
+target_link_libraries(GeometricConstraintSolver ${wxWidgets_LIBRARIES})
