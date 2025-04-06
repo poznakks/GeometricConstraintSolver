@@ -3,10 +3,107 @@
 #include "objects/line.h"
 #include <cmath>
 
+#include "constraints/constraint.h"
+#include "constraints/horizontal_constraint.h"
+#include "constraints/vertical_constraint.h"
+#include "constraints/distance_constraint.h"
+
 enum ID {
     ID_Point = 1,
     ID_Line,
     ID_Constraint
+};
+
+class DistanceConstraintDialog final : public wxDialog {
+public:
+    DistanceConstraintDialog(wxWindow* parent, const std::vector<Point>& points)
+        : wxDialog(parent, wxID_ANY, "Add Distance Constraint") {
+
+        auto* sizer = new wxBoxSizer(wxVERTICAL);
+
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select first point:"), 0, wxALL, 5);
+        choice1 = new wxChoice(this, wxID_ANY);
+        sizer->Add(choice1, 0, wxALL | wxEXPAND, 5);
+
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select second point:"), 0, wxALL, 5);
+        choice2 = new wxChoice(this, wxID_ANY);
+        sizer->Add(choice2, 0, wxALL | wxEXPAND, 5);
+
+        for (size_t i = 0; i < points.size(); ++i) {
+            wxString label = wxString::Format("Point %d (%d, %d)", (int)i, points[i].x, points[i].y);
+            choice1->Append(label);
+            choice2->Append(label);
+        }
+
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Target distance:"), 0, wxALL, 5);
+        distanceCtrl = new wxTextCtrl(this, wxID_ANY);
+        sizer->Add(distanceCtrl, 0, wxALL | wxEXPAND, 5);
+
+        auto* buttonSizer = new wxStdDialogButtonSizer();
+        buttonSizer->AddButton(new wxButton(this, wxID_OK));
+        buttonSizer->AddButton(new wxButton(this, wxID_CANCEL));
+        buttonSizer->Realize();
+
+        sizer->Add(buttonSizer, 0, wxALL | wxALIGN_CENTER, 10);
+        SetSizerAndFit(sizer);
+    }
+
+    int GetFirstIndex() const { return choice1->GetSelection(); }
+    int GetSecondIndex() const { return choice2->GetSelection(); }
+
+    double GetDistance() const {
+        double value = 0;
+        distanceCtrl->GetValue().ToDouble(&value);
+        return value;
+    }
+
+private:
+    wxChoice* choice1;
+    wxChoice* choice2;
+    wxTextCtrl* distanceCtrl;
+};
+
+class ConstraintDialog final : public wxDialog {
+public:
+    ConstraintDialog(wxWindow* parent, const std::vector<Point>& points)
+        : wxDialog(parent, wxID_ANY, "Add Constraint", wxDefaultPosition, wxDefaultSize) {
+
+        auto* sizer = new wxBoxSizer(wxVERTICAL);
+
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select first point:"), 0, wxALL, 5);
+        choice1 = new wxChoice(this, wxID_ANY);
+        sizer->Add(choice1, 0, wxALL | wxEXPAND, 5);
+
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select second point:"), 0, wxALL, 5);
+        choice2 = new wxChoice(this, wxID_ANY);
+        sizer->Add(choice2, 0, wxALL | wxEXPAND, 5);
+
+        for (size_t i = 0; i < points.size(); ++i) {
+            wxString label = wxString::Format("Point %d (%d, %d)", static_cast<int>(i), points[i].x, points[i].y);
+            choice1->Append(label);
+            choice2->Append(label);
+        }
+
+        auto* buttonSizer = new wxStdDialogButtonSizer();
+        buttonSizer->AddButton(new wxButton(this, wxID_OK));
+        buttonSizer->AddButton(new wxButton(this, wxID_CANCEL));
+        buttonSizer->Realize();
+
+        sizer->Add(buttonSizer, 0, wxALL | wxALIGN_CENTER, 10);
+        SetSizerAndFit(sizer);
+    }
+
+    int GetFirstIndex() const {
+        return choice1->GetSelection();
+    }
+
+    int GetSecondIndex() const {
+        return choice2->GetSelection();
+    }
+
+private:
+    wxChoice* choice1;
+    wxChoice* choice2;
 };
 
 // Dialog to input coordinates for a point or line
@@ -74,17 +171,28 @@ public:
         Refresh();  // Redraw the canvas
     }
 
-    std::vector<Point> getPoints() const {
-        return points;
+    void AddConstraint(std::unique_ptr<Constraint> constraint) {
+        constraints.push_back(std::move(constraint));
+        ApplyConstraints(); // сразу применить при добавлении
     }
+
+    std::vector<Point>& GetPoints() { return points; }
+    const std::vector<Point>& GetPoints() const { return points; }
 
 private:
     std::vector<Point> points;  // Points from GCS
     std::vector<Line> lines;    // Lines from GCS
+    std::vector<std::unique_ptr<Constraint>> constraints;
     bool isDragging = false;
     unsigned long draggingPointIndex = -1;  // To track the point being dragged
     unsigned long draggingLineIndex = -1;   // To track the line being dragged
     wxPoint lastMousePos;
+
+    void ApplyConstraints() {
+        for (const auto& constraint : constraints) {
+            constraint->apply();  // Применить ограничение
+        }
+    }
 
     void OnPaint(wxPaintEvent&) {
         wxPaintDC dc(this);
@@ -164,6 +272,7 @@ private:
             }
 
             lastMousePos = pos;
+            ApplyConstraints();
             Refresh();  // Redraw canvas with updated point or line position
         }
     }
@@ -228,7 +337,57 @@ private:
     }
 
     void OnConstraint(wxCommandEvent&) {
-        wxLogMessage("Add constraint functionality to be implemented");
+        const wxString choices[] = { "Horizontal", "Vertical", "Distance" };
+        wxSingleChoiceDialog typeDialog(this, "Select Constraint Type", "Constraint", 3, choices);
+
+        if (typeDialog.ShowModal() != wxID_OK) return;
+
+        wxString selected = typeDialog.GetStringSelection();
+        auto& points = canvas->GetPoints();
+
+        if (points.size() < 2) {
+            wxMessageBox("At least two points are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
+            return;
+        }
+
+        if (selected == "Distance") {
+            DistanceConstraintDialog dialog(this, points);
+            if (dialog.ShowModal() == wxID_OK) {
+                int i1 = dialog.GetFirstIndex();
+                int i2 = dialog.GetSecondIndex();
+                double d = dialog.GetDistance();
+
+                if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || i1 == i2 || d <= 0) {
+                    wxMessageBox("Invalid input for distance constraint.", "Error", wxOK | wxICON_WARNING);
+                    return;
+                }
+
+                auto constraint = std::make_unique<DistanceConstraint>(points[i1], points[i2], d);
+                canvas->AddConstraint(std::move(constraint));
+                canvas->Refresh();
+            }
+        } else {
+            ConstraintDialog dialog(this, points);
+            if (dialog.ShowModal() == wxID_OK) {
+                int i1 = dialog.GetFirstIndex();
+                int i2 = dialog.GetSecondIndex();
+
+                if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || i1 == i2) {
+                    wxMessageBox("Please select two different points.", "Invalid Selection", wxOK | wxICON_WARNING);
+                    return;
+                }
+
+                if (selected == "Horizontal") {
+                    auto constraint = std::make_unique<HorizontalConstraint>(points[i1], points[i2]);
+                    canvas->AddConstraint(std::move(constraint));
+                } else if (selected == "Vertical") {
+                    auto constraint = std::make_unique<VerticalConstraint>(points[i1], points[i2]);
+                    canvas->AddConstraint(std::move(constraint));
+                }
+
+                canvas->Refresh();
+            }
+        }
     }
 };
 
