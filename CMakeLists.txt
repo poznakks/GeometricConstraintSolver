@@ -14,16 +14,16 @@ add_executable(GeometricConstraintSolver main.cpp
         objects/point.cpp
         objects/point.h
         constraints/constraint.h
-        constraints/horizontal_constraint.cpp
-        constraints/horizontal_constraint.h
-        constraints/vertical_constraint.cpp
-        constraints/vertical_constraint.h
+        constraints/p2p_horizontal_constraint.cpp
+        constraints/p2p_horizontal_constraint.h
+        constraints/p2p_vertical_constraint.cpp
+        constraints/p2p_vertical_constraint.h
         objects/line.cpp
         objects/line.h
         constraints/parallel_constraint.cpp
         constraints/parallel_constraint.h
-        constraints/distance_constraint.cpp
-        constraints/distance_constraint.h
+        constraints/p2p_distance_constraint.cpp
+        constraints/p2p_distance_constraint.h
         objects/plane.cpp
         objects/plane.h
         objects/circle.cpp
@@ -36,6 +36,8 @@ add_executable(GeometricConstraintSolver main.cpp
         objects/sphere.h
         objects/solid_body.cpp
         objects/solid_body.h
+        constraints/p2l_distance_constraint.cpp
+        constraints/p2l_distance_constraint.h
 )
 
 # Link wxWidgets libraries

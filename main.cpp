@@ -1,12 +1,14 @@
+// ReSharper disable CppDFAMemoryLeak
 #include <wx/wx.h>
 #include "objects/point.h"
 #include "objects/line.h"
 #include <cmath>
 
 #include "constraints/constraint.h"
-#include "constraints/horizontal_constraint.h"
-#include "constraints/vertical_constraint.h"
-#include "constraints/distance_constraint.h"
+#include "constraints/p2p_horizontal_constraint.h"
+#include "constraints/p2l_distance_constraint.h"
+#include "constraints/p2p_vertical_constraint.h"
+#include "constraints/p2p_distance_constraint.h"
 
 enum ID {
     ID_Point = 1,
@@ -15,30 +17,95 @@ enum ID {
 };
 
 enum class ConstraintType {
-    Horizontal,
-    Vertical,
-    Distance
+    P2PHorizontal,
+    P2PVertical,
+    P2PDistance,
+    P2LDistance
 };
 
 inline wxString ConstraintTypeToString(const ConstraintType type) {
     switch (type) {
-        case ConstraintType::Horizontal: return "Horizontal";
-        case ConstraintType::Vertical:   return "Vertical";
-        case ConstraintType::Distance:   return "Distance";
+        case ConstraintType::P2PHorizontal: return "Points horizontal";
+        case ConstraintType::P2PVertical: return "Points vertical";
+        case ConstraintType::P2PDistance: return "Point to point distance";
+        case ConstraintType::P2LDistance: return "Point to line distance";
         default: return "Unknown";
     }
 }
 
 inline ConstraintType ConstraintTypeFromString(const wxString& str) {
-    if (str == "Horizontal") return ConstraintType::Horizontal;
-    if (str == "Vertical")   return ConstraintType::Vertical;
-    if (str == "Distance")   return ConstraintType::Distance;
+    if (str == "Points horizontal") return ConstraintType::P2PHorizontal;
+    if (str == "Points vertical") return ConstraintType::P2PVertical;
+    if (str == "Point to point distance") return ConstraintType::P2PDistance;
+    if (str == "Point to line distance") return ConstraintType::P2LDistance;
     throw std::invalid_argument("Unknown constraint string: " + std::string(str.mb_str()));
 }
 
-class DistanceConstraintDialog final : public wxDialog {
+class P2LDistanceConstraintDialog final : public wxDialog {
 public:
-    DistanceConstraintDialog(wxWindow* parent, const std::vector<Point>& points)
+    P2LDistanceConstraintDialog(wxWindow* parent, const std::vector<Point>& points, const std::vector<Line>& lines)
+        : wxDialog(parent, wxID_ANY, "Add Point-to-Line Constraint") {
+
+        auto* sizer = new wxBoxSizer(wxVERTICAL);
+
+        // Выбор точки
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select point:"), 0, wxALL, 5);
+        pointChoice = new wxChoice(this, wxID_ANY);
+        sizer->Add(pointChoice, 0, wxALL | wxEXPAND, 5);
+
+        // Заполнение списка точек
+        for (size_t i = 0; i < points.size(); ++i) {
+            wxString label = wxString::Format("Point %d (%.1f, %.1f)", static_cast<int>(i), points[i].x, points[i].y);
+            pointChoice->Append(label);
+        }
+
+        // Выбор прямой
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select line:"), 0, wxALL, 5);
+        lineChoice = new wxChoice(this, wxID_ANY);
+        sizer->Add(lineChoice, 0, wxALL | wxEXPAND, 5);
+
+        // Заполнение списка прямых
+        for (size_t i = 0; i < lines.size(); ++i) {
+            wxString label = wxString::Format("Line %d (%.1f, %.1f dir %.2f, %.2f)",
+                                              static_cast<int>(i),
+                                              lines[i].point.x, lines[i].point.y,
+                                              lines[i].direction.x, lines[i].direction.y);
+            lineChoice->Append(label);
+        }
+
+        // Поле ввода расстояния
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Target distance:"), 0, wxALL, 5);
+        distanceCtrl = new wxTextCtrl(this, wxID_ANY);
+        sizer->Add(distanceCtrl, 0, wxALL | wxEXPAND, 5);
+
+        // Кнопки OK / Cancel
+        auto* buttonSizer = new wxStdDialogButtonSizer();
+        buttonSizer->AddButton(new wxButton(this, wxID_OK));
+        buttonSizer->AddButton(new wxButton(this, wxID_CANCEL));
+        buttonSizer->Realize();
+
+        sizer->Add(buttonSizer, 0, wxALL | wxALIGN_CENTER, 10);
+        SetSizerAndFit(sizer);
+    }
+
+    int GetPointIndex() const { return pointChoice->GetSelection(); }
+    int GetLineIndex() const { return lineChoice->GetSelection(); }
+
+    double GetDistance() const {
+        double value = 0;
+        distanceCtrl->GetValue().ToDouble(&value);
+        return value;
+    }
+
+private:
+    wxChoice* pointChoice;
+    wxChoice* lineChoice;
+    wxTextCtrl* distanceCtrl;
+};
+
+class P2PDistanceConstraintDialog final : public wxDialog {
+public:
+    P2PDistanceConstraintDialog(wxWindow* parent, const std::vector<Point>& points)
         : wxDialog(parent, wxID_ANY, "Add Distance Constraint") {
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
@@ -52,7 +119,7 @@ public:
         sizer->Add(choice2, 0, wxALL | wxEXPAND, 5);
 
         for (size_t i = 0; i < points.size(); ++i) {
-            wxString label = wxString::Format("Point %d (%d, %d)", (int)i, points[i].x, points[i].y);
+            wxString label = wxString::Format("Point %d (%.1f, %.1f)", static_cast<int>(i), points[i].x, points[i].y);
             choice1->Append(label);
             choice2->Append(label);
         }
@@ -85,9 +152,9 @@ private:
     wxTextCtrl* distanceCtrl;
 };
 
-class ConstraintDialog final : public wxDialog {
+class P2PConstraintDialog final : public wxDialog {
 public:
-    ConstraintDialog(wxWindow* parent, const std::vector<Point>& points)
+    P2PConstraintDialog(wxWindow* parent, const std::vector<Point>& points)
         : wxDialog(parent, wxID_ANY, "Add Constraint", wxDefaultPosition, wxDefaultSize) {
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
@@ -101,7 +168,7 @@ public:
         sizer->Add(choice2, 0, wxALL | wxEXPAND, 5);
 
         for (size_t i = 0; i < points.size(); ++i) {
-            wxString label = wxString::Format("Point %d (%d, %d)", static_cast<int>(i), points[i].x, points[i].y);
+            wxString label = wxString::Format("Point %d (%.1f, %.1f)", static_cast<int>(i), points[i].x, points[i].y);
             choice1->Append(label);
             choice2->Append(label);
         }
@@ -202,6 +269,9 @@ public:
     std::vector<Point>& GetPoints() { return points; }
     const std::vector<Point>& GetPoints() const { return points; }
 
+    std::vector<Line>& GetLines() { return lines; }
+    const std::vector<Line>& GetLines() const { return lines; }
+
 private:
     std::vector<Point> points;  // Points from GCS
     std::vector<Line> lines;    // Lines from GCS
@@ -213,7 +283,7 @@ private:
     unsigned long draggingLineIndex = -1;   // To track the line being dragged
     wxPoint lastMousePos;
 
-    void ApplyConstraints() {
+    void ApplyConstraints() const {
         for (const auto& constraint : constraints) {
             constraint->apply();  // Применить ограничение
         }
@@ -226,15 +296,15 @@ private:
 
         // Draw points
         for (const auto& point : points) {
-            dc.DrawCircle(wxPoint(point.x, point.y), 5);  // GCS points mapped to canvas points
+            dc.DrawCircle(wxPoint(static_cast<int>(point.x), static_cast<int>(point.y)), 5);  // GCS points mapped to canvas points
         }
 
         dc.SetPen(*wxBLUE_PEN);
         // Draw lines
         for (const auto& line : lines) {
             constexpr int length = 1;
-            wxPoint p1(line.point.x - line.direction.x * length, line.point.y - line.direction.y * length);
-            wxPoint p2(line.point.x + line.direction.x * length, line.point.y + line.direction.y * length);
+            wxPoint p1(static_cast<int>(line.point.x - line.direction.x * length), static_cast<int>(line.point.y - line.direction.y * length));
+            wxPoint p2(static_cast<int>(line.point.x + line.direction.x * length), static_cast<int>(line.point.y + line.direction.y * length));
             dc.DrawLine(p1, p2);
         }
     }
@@ -242,8 +312,8 @@ private:
     // Helper function to check if a click is near a line
     static bool IsNearLine(const Line& line, const wxPoint& pos) {
         constexpr double threshold = 5.0;
-        const wxPoint p1(line.point.x, line.point.y);
-        const wxPoint p2(line.point.x + line.direction.x * 10, line.point.y + line.direction.y * 10);
+        const wxPoint p1(static_cast<int>(line.point.x), static_cast<int>(line.point.y));
+        const wxPoint p2(static_cast<int>(line.point.x + line.direction.x * 10), static_cast<int>(line.point.y + line.direction.y * 10));
 
         // Calculate the distance from the click to the line using a point-line distance formula
         const double distance = std::abs((p2.y - p1.y) * pos.x - (p2.x - p1.x) * pos.y + p2.x * p1.y - p2.y * p1.x) /
@@ -294,8 +364,8 @@ private:
     }
 
     void OnMouseMove(const wxMouseEvent& event) {
+        const wxPoint pos = event.GetPosition();
         if (isDragging) {
-            const wxPoint pos = event.GetPosition();
             const int dx = pos.x - lastMousePos.x;
             const int dy = pos.y - lastMousePos.y;
 
@@ -310,15 +380,9 @@ private:
                 lines[draggingLineIndex].point.x += dx;
                 lines[draggingLineIndex].point.y += dy;
             }
-
-            lastMousePos = pos;
-            ApplyConstraints();
-            Refresh();  // Redraw canvas with updated point or line position
         }
 
         if (isRotating && rotatingLineIndex != -1) {
-            const wxPoint pos = event.GetPosition();
-
             Line& line = lines[rotatingLineIndex];
             const Point origin(line.point.x, line.point.y);
 
@@ -342,10 +406,10 @@ private:
 
             dir.x = newX;
             dir.y = newY;
-
-            lastMousePos = pos;
-            Refresh();
         }
+        lastMousePos = pos;
+        ApplyConstraints();
+        Refresh();  // Redraw canvas with updated point or line position
     }
 
     void OnLeftUp(wxMouseEvent&) {
@@ -416,13 +480,14 @@ private:
 
     void OnConstraint(wxCommandEvent&) {
         const std::vector<ConstraintType> types = {
-            ConstraintType::Horizontal,
-            ConstraintType::Vertical,
-            ConstraintType::Distance
+            ConstraintType::P2PHorizontal,
+            ConstraintType::P2PVertical,
+            ConstraintType::P2PDistance,
+            ConstraintType::P2LDistance
         };
 
         wxArrayString choices;
-        for (ConstraintType t : types) {
+        for (const ConstraintType t : types) {
             choices.Add(ConstraintTypeToString(t));
         }
 
@@ -430,7 +495,7 @@ private:
         if (typeDialog.ShowModal() != wxID_OK) return;
 
         wxString selectedStr = typeDialog.GetStringSelection();
-        auto it = std::find_if(types.begin(), types.end(), [&](ConstraintType t) {
+        auto it = std::ranges::find_if(types, [&](ConstraintType t) {
             return ConstraintTypeToString(t) == selectedStr;
         });
 
@@ -441,14 +506,22 @@ private:
 
         ConstraintType selected = *it;
         auto& points = canvas->GetPoints();
+        auto& lines = canvas->GetLines();
 
-        if (points.size() < 2) {
-            wxMessageBox("At least two points are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
-            return;
+        if (selected == ConstraintType::P2LDistance) {
+            if (points.empty() || lines.empty()) {
+                wxMessageBox("At least one line and one point are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
+                return;
+            }
+        } else {
+            if (points.size() < 2) {
+                wxMessageBox("At least two points are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
+                return;
+            }
         }
 
-        if (selected == ConstraintType::Distance) {
-            DistanceConstraintDialog dialog(this, points);
+        if (selected == ConstraintType::P2PDistance) {
+            P2PDistanceConstraintDialog dialog(this, points);
             if (dialog.ShowModal() == wxID_OK) {
                 int i1 = dialog.GetFirstIndex();
                 int i2 = dialog.GetSecondIndex();
@@ -459,12 +532,28 @@ private:
                     return;
                 }
 
-                auto constraint = std::make_unique<DistanceConstraint>(points[i1], points[i2], d);
+                auto constraint = std::make_unique<P2PDistanceConstraint>(points[i1], points[i2], d);
+                canvas->AddConstraint(std::move(constraint));
+                canvas->Refresh();
+            }
+        } else if (selected == ConstraintType::P2LDistance) {
+            P2LDistanceConstraintDialog dialog(this, points, lines);
+            if (dialog.ShowModal() == wxID_OK) {
+                int i1 = dialog.GetPointIndex();
+                int i2 = dialog.GetLineIndex();
+                double d = dialog.GetDistance();
+
+                if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || d <= 0) {
+                    wxMessageBox("Invalid input for distance constraint.", "Error", wxOK | wxICON_WARNING);
+                    return;
+                }
+
+                auto constraint = std::make_unique<P2LDistanceConstraint>(points[i1], lines[i2], d);
                 canvas->AddConstraint(std::move(constraint));
                 canvas->Refresh();
             }
         } else {
-            ConstraintDialog dialog(this, points);
+            P2PConstraintDialog dialog(this, points);
             if (dialog.ShowModal() == wxID_OK) {
                 int i1 = dialog.GetFirstIndex();
                 int i2 = dialog.GetSecondIndex();
@@ -474,11 +563,11 @@ private:
                     return;
                 }
 
-                if (selected == ConstraintType::Horizontal) {
-                    auto constraint = std::make_unique<HorizontalConstraint>(points[i1], points[i2]);
+                if (selected == ConstraintType::P2PHorizontal) {
+                    auto constraint = std::make_unique<P2PHorizontalConstraint>(points[i1], points[i2]);
                     canvas->AddConstraint(std::move(constraint));
-                } else if (selected == ConstraintType::Vertical) {
-                    auto constraint = std::make_unique<VerticalConstraint>(points[i1], points[i2]);
+                } else if (selected == ConstraintType::P2PVertical) {
+                    auto constraint = std::make_unique<P2PVerticalConstraint>(points[i1], points[i2]);
                     canvas->AddConstraint(std::move(constraint));
                 }
 

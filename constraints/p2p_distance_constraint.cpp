@@ -2,16 +2,16 @@
 // Created by Vlad Boguzh on 18.09.2024.
 //
 
-#include "distance_constraint.h"
+#include "p2p_distance_constraint.h"
 
-DistanceConstraint::DistanceConstraint(Point& p1, Point& p2, const double targetDistance)
+P2PDistanceConstraint::P2PDistanceConstraint(Point& p1, Point& p2, const double targetDistance)
     : point1(p1), point2(p2), targetDistance(targetDistance) {}
 
-bool DistanceConstraint::isSatisfied() const {
+bool P2PDistanceConstraint::isSatisfied() const {
     return std::abs(point1.distanceTo(point2) - targetDistance) < 1e-6;
 }
 
-void DistanceConstraint::apply() {
+void P2PDistanceConstraint::apply() {
     if (!isSatisfied()) {
         const double currentDistance = point1.distanceTo(point2);
         std::cout << "currentDistance " << currentDistance << std::endl;

@@ -8,9 +8,9 @@
 #include "constraint.h"
 #include "../objects/point.h"
 
-class DistanceConstraint final : public Constraint {
+class P2PDistanceConstraint final : public Constraint {
 public:
-    DistanceConstraint(Point& p1, Point& p2, double targetDistance);
+    P2PDistanceConstraint(Point& p1, Point& p2, double targetDistance);
     bool isSatisfied() const override;
     void apply() override;
 
