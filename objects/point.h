@@ -9,7 +9,7 @@
 
 class Point final {
 public:
-    int x, y, z;
+    double x, y, z;
     explicit Point(double x = 0, double y = 0, double z = 0);
     double distanceTo(const Point& other) const;
     void move(double dx, double dy, double dz = 0);

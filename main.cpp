@@ -232,7 +232,7 @@ private:
         dc.SetPen(*wxBLUE_PEN);
         // Draw lines
         for (const auto& line : lines) {
-            constexpr int length = 10000;
+            constexpr int length = 1;
             wxPoint p1(line.point.x - line.direction.x * length, line.point.y - line.direction.y * length);
             wxPoint p2(line.point.x + line.direction.x * length, line.point.y + line.direction.y * length);
             dc.DrawLine(p1, p2);
@@ -320,7 +320,7 @@ private:
             const wxPoint pos = event.GetPosition();
 
             Line& line = lines[rotatingLineIndex];
-            wxPoint origin(line.point.x, line.point.y);
+            const Point origin(line.point.x, line.point.y);
 
             double dx1 = lastMousePos.x - origin.x;
             double dy1 = lastMousePos.y - origin.y;
@@ -332,7 +332,6 @@ private:
             double deltaAngle = angle2 - angle1;
 
             Point& dir = line.direction;
-            double originalLength = std::sqrt(dir.x * dir.x + dir.y * dir.y);
 
             // Поворот
             double cosA = std::cos(deltaAngle);
@@ -340,13 +339,6 @@ private:
 
             double newX = dir.x * cosA - dir.y * sinA;
             double newY = dir.x * sinA + dir.y * cosA;
-
-            // Восстановление длины
-            double newLength = std::sqrt(newX * newX + newY * newY);
-            if (newLength > 0.00001) {
-                newX = newX / newLength * originalLength;
-                newY = newY / newLength * originalLength;
-            }
 
             dir.x = newX;
             dir.y = newY;
