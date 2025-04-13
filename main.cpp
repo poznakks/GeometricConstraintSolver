@@ -14,6 +14,28 @@ enum ID {
     ID_Constraint
 };
 
+enum class ConstraintType {
+    Horizontal,
+    Vertical,
+    Distance
+};
+
+inline wxString ConstraintTypeToString(const ConstraintType type) {
+    switch (type) {
+        case ConstraintType::Horizontal: return "Horizontal";
+        case ConstraintType::Vertical:   return "Vertical";
+        case ConstraintType::Distance:   return "Distance";
+        default: return "Unknown";
+    }
+}
+
+inline ConstraintType ConstraintTypeFromString(const wxString& str) {
+    if (str == "Horizontal") return ConstraintType::Horizontal;
+    if (str == "Vertical")   return ConstraintType::Vertical;
+    if (str == "Distance")   return ConstraintType::Distance;
+    throw std::invalid_argument("Unknown constraint string: " + std::string(str.mb_str()));
+}
+
 class DistanceConstraintDialog final : public wxDialog {
 public:
     DistanceConstraintDialog(wxWindow* parent, const std::vector<Point>& points)
@@ -159,6 +181,7 @@ public:
         Bind(wxEVT_LEFT_DOWN, &MyCanvas::OnLeftClick, this);
         Bind(wxEVT_MOTION, &MyCanvas::OnMouseMove, this);
         Bind(wxEVT_LEFT_UP, &MyCanvas::OnLeftUp, this);
+        Bind(wxEVT_LEFT_DCLICK, &MyCanvas::OnLeftDoubleClick, this);
     }
 
     void AddPoint(const Point& gcs_point) {
@@ -184,6 +207,8 @@ private:
     std::vector<Line> lines;    // Lines from GCS
     std::vector<std::unique_ptr<Constraint>> constraints;
     bool isDragging = false;
+    bool isRotating = false;
+    unsigned long rotatingLineIndex = -1;
     unsigned long draggingPointIndex = -1;  // To track the point being dragged
     unsigned long draggingLineIndex = -1;   // To track the line being dragged
     wxPoint lastMousePos;
@@ -207,7 +232,7 @@ private:
         dc.SetPen(*wxBLUE_PEN);
         // Draw lines
         for (const auto& line : lines) {
-            constexpr int length = 10;
+            constexpr int length = 10000;
             wxPoint p1(line.point.x - line.direction.x * length, line.point.y - line.direction.y * length);
             wxPoint p2(line.point.x + line.direction.x * length, line.point.y + line.direction.y * length);
             dc.DrawLine(p1, p2);
@@ -215,7 +240,8 @@ private:
     }
 
     // Helper function to check if a click is near a line
-    static bool IsNearLine(const Line& line, const wxPoint& pos, const double threshold = 5.0) {
+    static bool IsNearLine(const Line& line, const wxPoint& pos) {
+        constexpr double threshold = 5.0;
         const wxPoint p1(line.point.x, line.point.y);
         const wxPoint p2(line.point.x + line.direction.x * 10, line.point.y + line.direction.y * 10);
 
@@ -253,6 +279,20 @@ private:
         }
     }
 
+    void OnLeftDoubleClick(const wxMouseEvent& event) {
+        const wxPoint pos = event.GetPosition();
+
+        for (size_t i = 0; i < lines.size(); ++i) {
+            if (IsNearLine(lines[i], pos)) {
+                isRotating = true;
+                rotatingLineIndex = i;
+                lastMousePos = pos;
+                CaptureMouse();  // Зафиксировать мышь
+                return;
+            }
+        }
+    }
+
     void OnMouseMove(const wxMouseEvent& event) {
         if (isDragging) {
             const wxPoint pos = event.GetPosition();
@@ -275,12 +315,58 @@ private:
             ApplyConstraints();
             Refresh();  // Redraw canvas with updated point or line position
         }
+
+        if (isRotating && rotatingLineIndex != -1) {
+            const wxPoint pos = event.GetPosition();
+
+            Line& line = lines[rotatingLineIndex];
+            wxPoint origin(line.point.x, line.point.y);
+
+            double dx1 = lastMousePos.x - origin.x;
+            double dy1 = lastMousePos.y - origin.y;
+            double dx2 = pos.x - origin.x;
+            double dy2 = pos.y - origin.y;
+
+            double angle1 = std::atan2(dy1, dx1);
+            double angle2 = std::atan2(dy2, dx2);
+            double deltaAngle = angle2 - angle1;
+
+            Point& dir = line.direction;
+            double originalLength = std::sqrt(dir.x * dir.x + dir.y * dir.y);
+
+            // Поворот
+            double cosA = std::cos(deltaAngle);
+            double sinA = std::sin(deltaAngle);
+
+            double newX = dir.x * cosA - dir.y * sinA;
+            double newY = dir.x * sinA + dir.y * cosA;
+
+            // Восстановление длины
+            double newLength = std::sqrt(newX * newX + newY * newY);
+            if (newLength > 0.00001) {
+                newX = newX / newLength * originalLength;
+                newY = newY / newLength * originalLength;
+            }
+
+            dir.x = newX;
+            dir.y = newY;
+
+            lastMousePos = pos;
+            Refresh();
+        }
     }
 
     void OnLeftUp(wxMouseEvent&) {
-        isDragging = false;
-        draggingPointIndex = -1;
-        draggingLineIndex = -1;  // Stop dragging
+        if (isDragging) {
+            isDragging = false;
+            draggingPointIndex = -1;
+            draggingLineIndex = -1;  // Stop dragging
+        }
+        if (isRotating) {
+            isRotating = false;
+            rotatingLineIndex = -1;
+            if (HasCapture()) ReleaseMouse();
+        }
     }
 };
 
@@ -337,12 +423,31 @@ private:
     }
 
     void OnConstraint(wxCommandEvent&) {
-        const wxString choices[] = { "Horizontal", "Vertical", "Distance" };
-        wxSingleChoiceDialog typeDialog(this, "Select Constraint Type", "Constraint", 3, choices);
+        const std::vector<ConstraintType> types = {
+            ConstraintType::Horizontal,
+            ConstraintType::Vertical,
+            ConstraintType::Distance
+        };
 
+        wxArrayString choices;
+        for (ConstraintType t : types) {
+            choices.Add(ConstraintTypeToString(t));
+        }
+
+        wxSingleChoiceDialog typeDialog(this, "Select Constraint Type", "Constraint", choices);
         if (typeDialog.ShowModal() != wxID_OK) return;
 
-        wxString selected = typeDialog.GetStringSelection();
+        wxString selectedStr = typeDialog.GetStringSelection();
+        auto it = std::find_if(types.begin(), types.end(), [&](ConstraintType t) {
+            return ConstraintTypeToString(t) == selectedStr;
+        });
+
+        if (it == types.end()) {
+            wxMessageBox("Unknown constraint type selected", "Error", wxOK | wxICON_ERROR);
+            return;
+        }
+
+        ConstraintType selected = *it;
         auto& points = canvas->GetPoints();
 
         if (points.size() < 2) {
@@ -350,7 +455,7 @@ private:
             return;
         }
 
-        if (selected == "Distance") {
+        if (selected == ConstraintType::Distance) {
             DistanceConstraintDialog dialog(this, points);
             if (dialog.ShowModal() == wxID_OK) {
                 int i1 = dialog.GetFirstIndex();
@@ -377,10 +482,10 @@ private:
                     return;
                 }
 
-                if (selected == "Horizontal") {
+                if (selected == ConstraintType::Horizontal) {
                     auto constraint = std::make_unique<HorizontalConstraint>(points[i1], points[i2]);
                     canvas->AddConstraint(std::move(constraint));
-                } else if (selected == "Vertical") {
+                } else if (selected == ConstraintType::Vertical) {
                     auto constraint = std::make_unique<VerticalConstraint>(points[i1], points[i2]);
                     canvas->AddConstraint(std::move(constraint));
                 }
