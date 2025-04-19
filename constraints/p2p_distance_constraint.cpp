@@ -14,7 +14,6 @@ bool P2PDistanceConstraint::isSatisfied() const {
 void P2PDistanceConstraint::apply() {
     if (!isSatisfied()) {
         const double currentDistance = point1.distanceTo(point2);
-        std::cout << "currentDistance " << currentDistance << std::endl;
         const double scale = targetDistance / currentDistance;
         point2.move(
             (point2.x - point1.x) * (scale - 1),
