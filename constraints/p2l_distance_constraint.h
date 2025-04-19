@@ -6,17 +6,18 @@
 #define P2L_DISTANCE_CONSTRAINT_H
 
 #include "constraint.h"
+#include "../types.h"
 #include "../objects/line.h"
 
 class P2LDistanceConstraint final : public Constraint {
 public:
-    P2LDistanceConstraint(Point& p, Line& l, double targetDistance);
+    P2LDistanceConstraint(PointSharedPtr p, LineSharedPtr l, double targetDistance);
     bool isSatisfied() const override;
     void apply() override;
 
 private:
-    Point& point;
-    Line& line;
+    PointSharedPtr point;
+    LineSharedPtr line;
     double targetDistance;
 };
 

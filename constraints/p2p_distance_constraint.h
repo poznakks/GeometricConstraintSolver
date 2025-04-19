@@ -6,17 +6,18 @@
 #define DISTANCE_CONSTRAINT_H
 
 #include "constraint.h"
+#include "../types.h"
 #include "../objects/point.h"
 
 class P2PDistanceConstraint final : public Constraint {
 public:
-    P2PDistanceConstraint(Point& p1, Point& p2, double targetDistance);
+    P2PDistanceConstraint(PointSharedPtr p1, PointSharedPtr p2, double targetDistance);
     bool isSatisfied() const override;
     void apply() override;
 
 private:
-    Point& point1;
-    Point& point2;
+    PointSharedPtr point1;
+    PointSharedPtr point2;
     double targetDistance;
 };
 

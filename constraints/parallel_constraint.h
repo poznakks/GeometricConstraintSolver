@@ -6,17 +6,19 @@
 #define PARALLEL_CONSTRAINT_H
 
 #include "constraint.h"
+#include "../types.h"
 #include "../objects//line.h"
 
 class ParallelConstraint final : public Constraint {
 public:
-    ParallelConstraint(Line& line1, Line& line2);
+    ParallelConstraint(LineSharedPtr l1, LineSharedPtr l2);
     bool isSatisfied() const override;
     void apply() override;
 
 private:
-    Line& line1;
-    Line& line2;
+    LineSharedPtr line1;
+    LineSharedPtr line2;
 };
+
 
 #endif //PARALLEL_CONSTRAINT_H

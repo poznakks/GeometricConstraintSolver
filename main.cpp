@@ -4,6 +4,7 @@
 #include "objects/line.h"
 #include <cmath>
 
+#include "types.h"
 #include "constraints/constraint.h"
 #include "constraints/p2p_horizontal_constraint.h"
 #include "constraints/p2l_distance_constraint.h"
@@ -43,7 +44,7 @@ inline ConstraintType ConstraintTypeFromString(const wxString& str) {
 
 class P2LDistanceConstraintDialog final : public wxDialog {
 public:
-    P2LDistanceConstraintDialog(wxWindow* parent, const std::vector<Point>& points, const std::vector<Line>& lines)
+    P2LDistanceConstraintDialog(wxWindow* parent, const VectorPointSharedPtr& points, const VectorLineSharedPtr& lines)
         : wxDialog(parent, wxID_ANY, "Add Point-to-Line Constraint") {
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
@@ -55,7 +56,7 @@ public:
 
         // Заполнение списка точек
         for (size_t i = 0; i < points.size(); ++i) {
-            wxString label = wxString::Format("Point %d (%.1f, %.1f)", static_cast<int>(i), points[i].x, points[i].y);
+            wxString label = wxString::Format("Point %d (%.1f, %.1f)", static_cast<int>(i), points[i]->x, points[i]->y);
             pointChoice->Append(label);
         }
 
@@ -68,8 +69,8 @@ public:
         for (size_t i = 0; i < lines.size(); ++i) {
             wxString label = wxString::Format("Line %d (%.1f, %.1f dir %.2f, %.2f)",
                                               static_cast<int>(i),
-                                              lines[i].point.x, lines[i].point.y,
-                                              lines[i].direction.x, lines[i].direction.y);
+                                              lines[i]->point.x, lines[i]->point.y,
+                                              lines[i]->direction.x, lines[i]->direction.y);
             lineChoice->Append(label);
         }
 
@@ -105,7 +106,7 @@ private:
 
 class P2PDistanceConstraintDialog final : public wxDialog {
 public:
-    P2PDistanceConstraintDialog(wxWindow* parent, const std::vector<Point>& points)
+    P2PDistanceConstraintDialog(wxWindow* parent, const VectorPointSharedPtr& points)
         : wxDialog(parent, wxID_ANY, "Add Distance Constraint") {
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
@@ -119,7 +120,7 @@ public:
         sizer->Add(choice2, 0, wxALL | wxEXPAND, 5);
 
         for (size_t i = 0; i < points.size(); ++i) {
-            wxString label = wxString::Format("Point %d (%.1f, %.1f)", static_cast<int>(i), points[i].x, points[i].y);
+            wxString label = wxString::Format("Point %d (%.1f, %.1f)", static_cast<int>(i), points[i]->x, points[i]->y);
             choice1->Append(label);
             choice2->Append(label);
         }
@@ -154,7 +155,7 @@ private:
 
 class P2PConstraintDialog final : public wxDialog {
 public:
-    P2PConstraintDialog(wxWindow* parent, const std::vector<Point>& points)
+    P2PConstraintDialog(wxWindow* parent, const VectorPointSharedPtr& points)
         : wxDialog(parent, wxID_ANY, "Add Constraint", wxDefaultPosition, wxDefaultSize) {
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
@@ -168,7 +169,7 @@ public:
         sizer->Add(choice2, 0, wxALL | wxEXPAND, 5);
 
         for (size_t i = 0; i < points.size(); ++i) {
-            wxString label = wxString::Format("Point %d (%.1f, %.1f)", static_cast<int>(i), points[i].x, points[i].y);
+            wxString label = wxString::Format("Point %d (%.1f, %.1f)", static_cast<int>(i), points[i]->x, points[i]->y);
             choice1->Append(label);
             choice2->Append(label);
         }
@@ -251,31 +252,28 @@ public:
         Bind(wxEVT_LEFT_DCLICK, &MyCanvas::OnLeftDoubleClick, this);
     }
 
-    void AddPoint(const Point& gcs_point) {
+    void AddPoint(const PointSharedPtr& gcs_point) {
         points.push_back(gcs_point);
         Refresh();  // Redraw the canvas
     }
 
-    void AddLine(const Line& gcs_line) {
+    void AddLine(const LineSharedPtr& gcs_line) {
         lines.push_back(gcs_line);
         Refresh();  // Redraw the canvas
     }
 
-    void AddConstraint(std::unique_ptr<Constraint> constraint) {
+    void AddConstraint(ConstraintUniquePtr constraint) {
         constraints.push_back(std::move(constraint));
         ApplyConstraints(); // сразу применить при добавлении
     }
 
-    std::vector<Point>& GetPoints() { return points; }
-    const std::vector<Point>& GetPoints() const { return points; }
-
-    std::vector<Line>& GetLines() { return lines; }
-    const std::vector<Line>& GetLines() const { return lines; }
+    VectorPointSharedPtr GetPoints() const { return points; }
+    VectorLineSharedPtr GetLines() const { return lines; }
 
 private:
-    std::vector<Point> points;  // Points from GCS
-    std::vector<Line> lines;    // Lines from GCS
-    std::vector<std::unique_ptr<Constraint>> constraints;
+    VectorPointSharedPtr points;  // Points from GCS
+    VectorLineSharedPtr lines;    // Lines from GCS
+    VectorConstraintUniquePtr constraints;
     bool isDragging = false;
     bool isRotating = false;
     unsigned long rotatingLineIndex = -1;
@@ -296,24 +294,24 @@ private:
 
         // Draw points
         for (const auto& point : points) {
-            dc.DrawCircle(wxPoint(static_cast<int>(point.x), static_cast<int>(point.y)), 5);  // GCS points mapped to canvas points
+            dc.DrawCircle(wxPoint(static_cast<int>(point->x), static_cast<int>(point->y)), 5);  // GCS points mapped to canvas points
         }
 
         dc.SetPen(*wxBLUE_PEN);
         // Draw lines
         for (const auto& line : lines) {
-            constexpr int length = 1;
-            wxPoint p1(static_cast<int>(line.point.x - line.direction.x * length), static_cast<int>(line.point.y - line.direction.y * length));
-            wxPoint p2(static_cast<int>(line.point.x + line.direction.x * length), static_cast<int>(line.point.y + line.direction.y * length));
+            constexpr int length = 1000;
+            wxPoint p1(static_cast<int>(line->point.x - line->direction.x * length), static_cast<int>(line->point.y - line->direction.y * length));
+            wxPoint p2(static_cast<int>(line->point.x + line->direction.x * length), static_cast<int>(line->point.y + line->direction.y * length));
             dc.DrawLine(p1, p2);
         }
     }
 
     // Helper function to check if a click is near a line
-    static bool IsNearLine(const Line& line, const wxPoint& pos) {
+    static bool IsNearLine(const LineSharedPtr& line, const wxPoint& pos) {
         constexpr double threshold = 5.0;
-        const wxPoint p1(static_cast<int>(line.point.x), static_cast<int>(line.point.y));
-        const wxPoint p2(static_cast<int>(line.point.x + line.direction.x * 10), static_cast<int>(line.point.y + line.direction.y * 10));
+        const wxPoint p1(static_cast<int>(line->point.x), static_cast<int>(line->point.y));
+        const wxPoint p2(static_cast<int>(line->point.x + line->direction.x * 10), static_cast<int>(line->point.y + line->direction.y * 10));
 
         // Calculate the distance from the click to the line using a point-line distance formula
         const double distance = std::abs((p2.y - p1.y) * pos.x - (p2.x - p1.x) * pos.y + p2.x * p1.y - p2.y * p1.x) /
@@ -330,7 +328,7 @@ private:
 
         // Check if a point is clicked
         for (size_t i = 0; i < points.size(); ++i) {
-            if (abs(points[i].x - pos.x) < 5 && abs(points[i].y - pos.y) < 5) {
+            if (abs(points[i]->x - pos.x) < 5 && abs(points[i]->y - pos.y) < 5) {
                 isDragging = true;
                 draggingPointIndex = i;  // Start dragging this point
                 lastMousePos = pos;
@@ -371,20 +369,20 @@ private:
 
             // If dragging a point
             if (draggingPointIndex != -1) {
-                points[draggingPointIndex].x += dx;
-                points[draggingPointIndex].y += dy;
+                points[draggingPointIndex]->x += dx;
+                points[draggingPointIndex]->y += dy;
             }
 
             // If dragging a line
             if (draggingLineIndex != -1) {
-                lines[draggingLineIndex].point.x += dx;
-                lines[draggingLineIndex].point.y += dy;
+                lines[draggingLineIndex]->point.x += dx;
+                lines[draggingLineIndex]->point.y += dy;
             }
         }
 
         if (isRotating && rotatingLineIndex != -1) {
-            Line& line = lines[rotatingLineIndex];
-            const Point origin(line.point.x, line.point.y);
+            const auto& line = lines[rotatingLineIndex];
+            const Point origin(line->point.x, line->point.y);
 
             double dx1 = lastMousePos.x - origin.x;
             double dy1 = lastMousePos.y - origin.y;
@@ -395,7 +393,7 @@ private:
             double angle2 = std::atan2(dy2, dx2);
             double deltaAngle = angle2 - angle1;
 
-            Point& dir = line.direction;
+            Point& dir = line->direction;
 
             // Поворот
             double cosA = std::cos(deltaAngle);
@@ -453,7 +451,7 @@ private:
 
             // Create a GCS point and add it to the canvas
             const Point point(x, y);
-            canvas->AddPoint(point);
+            canvas->AddPoint(std::make_shared<Point>(point));
         }
     }
 
@@ -473,13 +471,13 @@ private:
                 const Point endPoint(x2, y2);
                 const Line line = Line::fromTwoPoints(startPoint, endPoint);
 
-                canvas->AddLine(line);
+                canvas->AddLine(std::make_shared<Line>(line));
             }
         }
     }
 
     void OnConstraint(wxCommandEvent&) {
-        const std::vector<ConstraintType> types = {
+        const std::vector types = {
             ConstraintType::P2PHorizontal,
             ConstraintType::P2PVertical,
             ConstraintType::P2PDistance,
@@ -505,8 +503,8 @@ private:
         }
 
         ConstraintType selected = *it;
-        auto& points = canvas->GetPoints();
-        auto& lines = canvas->GetLines();
+        auto points = canvas->GetPoints();
+        auto lines = canvas->GetLines();
 
         if (selected == ConstraintType::P2LDistance) {
             if (points.empty() || lines.empty()) {

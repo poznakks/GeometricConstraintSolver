@@ -38,6 +38,7 @@ add_executable(GeometricConstraintSolver main.cpp
         objects/solid_body.h
         constraints/p2l_distance_constraint.cpp
         constraints/p2l_distance_constraint.h
+        types.h
 )
 
 # Link wxWidgets libraries

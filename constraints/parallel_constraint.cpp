@@ -4,22 +4,24 @@
 
 #include "parallel_constraint.h"
 
-ParallelConstraint::ParallelConstraint(Line& line1, Line& line2)
-    : line1(line1), line2(line2) {}
+ParallelConstraint::ParallelConstraint(LineSharedPtr l1, LineSharedPtr l2)
+    : line1(std::move(l1)), line2(std::move(l2)) {}
 
 bool ParallelConstraint::isSatisfied() const {
+    const Point& d1 = line1->direction;
+    const Point& d2 = line2->direction;
+
     // Векторное произведение должно быть равно нулю, если линии параллельны
     const Point crossProduct(
-        line1.direction.y * line2.direction.z - line1.direction.z * line2.direction.y,
-        line1.direction.z * line2.direction.x - line1.direction.x * line2.direction.z,
-        line1.direction.x * line2.direction.y - line1.direction.y * line2.direction.x
+        d1.y * d2.z - d1.z * d2.y,
+        d1.z * d2.x - d1.x * d2.z,
+        d1.x * d2.y - d1.y * d2.x
     );
     return (crossProduct.x == 0 && crossProduct.y == 0 && crossProduct.z == 0);
 }
 
 void ParallelConstraint::apply() {
     if (!isSatisfied()) {
-        // Применяем направляющий вектор первой прямой ко второй
-        line2.direction = line1.direction;
+        line2->direction = line1->direction;
     }
 }

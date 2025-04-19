@@ -4,18 +4,18 @@
 
 #include "p2l_distance_constraint.h"
 
-P2LDistanceConstraint::P2LDistanceConstraint(Point& p, Line& l, const double targetDistance)
-    : point(p), line(l), targetDistance(targetDistance) {}
+P2LDistanceConstraint::P2LDistanceConstraint(PointSharedPtr p, LineSharedPtr l, const double targetDistance)
+    : point(std::move(p)), line(std::move(l)), targetDistance(targetDistance) {}
 
 bool P2LDistanceConstraint::isSatisfied() const {
-    return std::abs(line.distanceTo(point) - targetDistance) < 1e-6;
+    return std::abs(line->distanceTo(*point) - targetDistance) < 1e-6;
 }
 
 void P2LDistanceConstraint::apply() {
     if (!isSatisfied()) {
-        const Point& A = line.point;     // Точка на прямой
-        const Point& d = line.direction; // Направляющий вектор прямой
-        const Point& P = point;          // Точка, которую двигаем
+        const Point& A = line->point;     // Точка на прямой
+        const Point& d = line->direction; // Направляющий вектор прямой
+        const Point& P = *point;          // Точка, которую двигаем
 
         // Вектор от A до P
         double vx = P.x - A.x;
@@ -46,6 +46,6 @@ void P2LDistanceConstraint::apply() {
 
         double delta = targetDistance - norm;
 
-        point.move(nx * delta, ny * delta, nz * delta);
+        point->move(nx * delta, ny * delta, nz * delta);
     }
 }
