@@ -20,8 +20,8 @@ add_executable(GeometricConstraintSolver main.cpp
         constraints/p2p_vertical_constraint.h
         objects/line.cpp
         objects/line.h
-        constraints/parallel_constraint.cpp
-        constraints/parallel_constraint.h
+        constraints/l2l_parallel_constraint.cpp
+        constraints/l2l_parallel_constraint.h
         constraints/p2p_distance_constraint.cpp
         constraints/p2p_distance_constraint.h
         objects/plane.cpp

@@ -2,12 +2,12 @@
 // Created by Vlad Boguzh on 18.09.2024.
 //
 
-#include "parallel_constraint.h"
+#include "l2l_parallel_constraint.h"
 
-ParallelConstraint::ParallelConstraint(LineSharedPtr l1, LineSharedPtr l2)
+L2LParallelConstraint::L2LParallelConstraint(LineSharedPtr l1, LineSharedPtr l2)
     : line1(std::move(l1)), line2(std::move(l2)) {}
 
-bool ParallelConstraint::isSatisfied() const {
+bool L2LParallelConstraint::isSatisfied() const {
     const Point& d1 = line1->direction;
     const Point& d2 = line2->direction;
 
@@ -20,7 +20,7 @@ bool ParallelConstraint::isSatisfied() const {
     return (crossProduct.x == 0 && crossProduct.y == 0 && crossProduct.z == 0);
 }
 
-void ParallelConstraint::apply() {
+void L2LParallelConstraint::apply() {
     if (!isSatisfied()) {
         line2->direction = line1->direction;
     }

@@ -9,9 +9,9 @@
 #include "../types.h"
 #include "../objects//line.h"
 
-class ParallelConstraint final : public Constraint {
+class L2LParallelConstraint final : public Constraint {
 public:
-    ParallelConstraint(LineSharedPtr l1, LineSharedPtr l2);
+    L2LParallelConstraint(LineSharedPtr l1, LineSharedPtr l2);
     bool isSatisfied() const override;
     void apply() override;
 

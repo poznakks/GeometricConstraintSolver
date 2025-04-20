@@ -6,6 +6,7 @@
 
 #include "types.h"
 #include "constraints/constraint.h"
+#include "constraints/l2l_parallel_constraint.h"
 #include "constraints/p2p_horizontal_constraint.h"
 #include "constraints/p2l_distance_constraint.h"
 #include "constraints/p2p_vertical_constraint.h"
@@ -21,7 +22,8 @@ enum class ConstraintType {
     P2PHorizontal,
     P2PVertical,
     P2PDistance,
-    P2LDistance
+    P2LDistance,
+    L2LParallel
 };
 
 inline wxString ConstraintTypeToString(const ConstraintType type) {
@@ -30,6 +32,7 @@ inline wxString ConstraintTypeToString(const ConstraintType type) {
         case ConstraintType::P2PVertical: return "Points vertical";
         case ConstraintType::P2PDistance: return "Point to point distance";
         case ConstraintType::P2LDistance: return "Point to line distance";
+        case ConstraintType::L2LParallel: return "Lines parallel";
         default: return "Unknown";
     }
 }
@@ -39,8 +42,50 @@ inline ConstraintType ConstraintTypeFromString(const wxString& str) {
     if (str == "Points vertical") return ConstraintType::P2PVertical;
     if (str == "Point to point distance") return ConstraintType::P2PDistance;
     if (str == "Point to line distance") return ConstraintType::P2LDistance;
+    if (str == "Lines parallel") return ConstraintType::L2LParallel;
     throw std::invalid_argument("Unknown constraint string: " + std::string(str.mb_str()));
 }
+
+class L2LParallelConstraintDialog final : public wxDialog {
+public:
+    L2LParallelConstraintDialog(wxWindow* parent, const VectorLineSharedPtr& lines)
+        : wxDialog(parent, wxID_ANY, "Add Parallel Lines Constraint") {
+
+        auto* sizer = new wxBoxSizer(wxVERTICAL);
+
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select first line:"), 0, wxALL, 5);
+        choice1 = new wxChoice(this, wxID_ANY);
+        sizer->Add(choice1, 0, wxALL | wxEXPAND, 5);
+
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select second line:"), 0, wxALL, 5);
+        choice2 = new wxChoice(this, wxID_ANY);
+        sizer->Add(choice2, 0, wxALL | wxEXPAND, 5);
+
+        for (size_t i = 0; i < lines.size(); ++i) {
+            wxString label = wxString::Format("Line %d (%.1f, %.1f dir %.2f, %.2f)",
+                                              static_cast<int>(i),
+                                              lines[i]->point.x, lines[i]->point.y,
+                                              lines[i]->direction.x, lines[i]->direction.y);
+            choice1->Append(label);
+            choice2->Append(label);
+        }
+
+        auto* buttonSizer = new wxStdDialogButtonSizer();
+        buttonSizer->AddButton(new wxButton(this, wxID_OK));
+        buttonSizer->AddButton(new wxButton(this, wxID_CANCEL));
+        buttonSizer->Realize();
+
+        sizer->Add(buttonSizer, 0, wxALL | wxALIGN_CENTER, 10);
+        SetSizerAndFit(sizer);
+    }
+
+    int GetFirstIndex() const { return choice1->GetSelection(); }
+    int GetSecondIndex() const { return choice2->GetSelection(); }
+
+private:
+    wxChoice* choice1;
+    wxChoice* choice2;
+};
 
 class P2LDistanceConstraintDialog final : public wxDialog {
 public:
@@ -381,7 +426,7 @@ private:
         }
 
         if (isRotating && rotatingLineIndex != -1) {
-            const auto& line = lines[rotatingLineIndex];
+            const auto line = lines[rotatingLineIndex];
             const Point origin(line->point.x, line->point.y);
 
             double dx1 = lastMousePos.x - origin.x;
@@ -481,7 +526,8 @@ private:
             ConstraintType::P2PHorizontal,
             ConstraintType::P2PVertical,
             ConstraintType::P2PDistance,
-            ConstraintType::P2LDistance
+            ConstraintType::P2LDistance,
+            ConstraintType::L2LParallel
         };
 
         wxArrayString choices;
@@ -511,6 +557,11 @@ private:
                 wxMessageBox("At least one line and one point are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
                 return;
             }
+        } else if (selected == ConstraintType::L2LParallel) {
+            if (lines.size() < 2) {
+                wxMessageBox("At least two lines are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
+                return;
+            }
         } else {
             if (points.size() < 2) {
                 wxMessageBox("At least two points are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
@@ -518,7 +569,20 @@ private:
             }
         }
 
-        if (selected == ConstraintType::P2PDistance) {
+        if (selected == ConstraintType::L2LParallel) {
+            L2LParallelConstraintDialog dialog(this, lines);
+            if (dialog.ShowModal() == wxID_OK) {
+                int i1 = dialog.GetFirstIndex();
+                int i2 = dialog.GetSecondIndex();
+                if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || i1 == i2) {
+                    wxMessageBox("Please select two different points.", "Invalid Selection", wxOK | wxICON_WARNING);
+                    return;
+                }
+                auto line1 = canvas->GetLines()[i1];
+                auto line2 = canvas->GetLines()[i2];
+                canvas->AddConstraint(std::make_unique<L2LParallelConstraint>(line1, line2));
+            }
+        } else if (selected == ConstraintType::P2PDistance) {
             P2PDistanceConstraintDialog dialog(this, points);
             if (dialog.ShowModal() == wxID_OK) {
                 int i1 = dialog.GetFirstIndex();
