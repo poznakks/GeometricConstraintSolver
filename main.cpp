@@ -8,6 +8,7 @@
 #include "constraints/constraint.h"
 #include "constraints/l2l_distance_constraint.h"
 #include "constraints/l2l_parallel_constraint.h"
+#include "constraints/l2l_perpendicular_constraint.h"
 #include "constraints/p2p_horizontal_constraint.h"
 #include "constraints/p2l_distance_constraint.h"
 #include "constraints/p2p_vertical_constraint.h"
@@ -25,7 +26,8 @@ enum class ConstraintType {
     P2PDistance,
     P2LDistance,
     L2LParallel,
-    L2LDistance
+    L2LDistance,
+    L2LPerpendicular
 };
 
 inline wxString ConstraintTypeToString(const ConstraintType type) {
@@ -36,6 +38,7 @@ inline wxString ConstraintTypeToString(const ConstraintType type) {
         case ConstraintType::P2LDistance: return "Point to line distance";
         case ConstraintType::L2LParallel: return "Lines parallel";
         case ConstraintType::L2LDistance: return "Line to Line Distance";
+        case ConstraintType::L2LPerpendicular: return "Line-to-Line Perpendicular";
         default: return "Unknown";
     }
 }
@@ -47,6 +50,7 @@ inline ConstraintType ConstraintTypeFromString(const wxString& str) {
     if (str == "Point to line distance") return ConstraintType::P2LDistance;
     if (str == "Lines parallel") return ConstraintType::L2LParallel;
     if (str == "Line to Line Distance") return ConstraintType::L2LDistance;
+    if (str == "Line-to-Line Perpendicular") return ConstraintType::L2LPerpendicular;
     throw std::invalid_argument("Unknown constraint string: " + std::string(str.mb_str()));
 }
 
@@ -107,10 +111,10 @@ private:
     wxTextCtrl* distanceCtrl;
 };
 
-class L2LParallelConstraintDialog final : public wxDialog {
+class L2LConstraintDialog final : public wxDialog {
 public:
-    L2LParallelConstraintDialog(wxWindow* parent, const VectorLineSharedPtr& lines)
-        : wxDialog(parent, wxID_ANY, "Add Parallel Lines Constraint") {
+    L2LConstraintDialog(wxWindow* parent, const VectorLineSharedPtr& lines)
+        : wxDialog(parent, wxID_ANY, "Add Lines Constraint") {
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
 
@@ -589,7 +593,8 @@ private:
             ConstraintType::P2PDistance,
             ConstraintType::P2LDistance,
             ConstraintType::L2LParallel,
-            ConstraintType::L2LDistance
+            ConstraintType::L2LDistance,
+            ConstraintType::L2LPerpendicular
         };
 
         wxArrayString choices;
@@ -619,7 +624,7 @@ private:
                 wxMessageBox("At least one line and one point are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
                 return;
             }
-        } else if (selected == ConstraintType::L2LParallel || selected == ConstraintType::L2LDistance) {
+        } else if (selected == ConstraintType::L2LParallel || selected == ConstraintType::L2LDistance || selected == ConstraintType::L2LPerpendicular) {
             if (lines.size() < 2) {
                 wxMessageBox("At least two lines are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
                 return;
@@ -645,8 +650,8 @@ private:
                 auto line2 = canvas->GetLines()[i2];
                 canvas->AddConstraint(std::make_unique<L2LDistanceConstraint>(line1, line2, d));
             }
-        } else if (selected == ConstraintType::L2LParallel) {
-            L2LParallelConstraintDialog dialog(this, lines);
+        } else if (selected == ConstraintType::L2LParallel || selected == ConstraintType::L2LPerpendicular) {
+            L2LConstraintDialog dialog(this, lines);
             if (dialog.ShowModal() == wxID_OK) {
                 int i1 = dialog.GetFirstIndex();
                 int i2 = dialog.GetSecondIndex();
@@ -656,7 +661,11 @@ private:
                 }
                 auto line1 = canvas->GetLines()[i1];
                 auto line2 = canvas->GetLines()[i2];
-                canvas->AddConstraint(std::make_unique<L2LParallelConstraint>(line1, line2));
+                if (selected == ConstraintType::L2LParallel) {
+                    canvas->AddConstraint(std::make_unique<L2LParallelConstraint>(line1, line2));
+                } else {
+                    canvas->AddConstraint(std::make_unique<L2LPerpendicularConstraint>(line1, line2));
+                }
             }
         } else if (selected == ConstraintType::P2PDistance) {
             P2PDistanceConstraintDialog dialog(this, points);

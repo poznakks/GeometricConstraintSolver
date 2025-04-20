@@ -11,6 +11,8 @@ if(wxWidgets_USE_FILE) # not defined in CONFIG mode
 endif()
 
 add_executable(GeometricConstraintSolver main.cpp
+        objects/plane.cpp
+        objects/plane.h
         objects/point.cpp
         objects/point.h
         constraints/constraint.h
@@ -24,23 +26,15 @@ add_executable(GeometricConstraintSolver main.cpp
         constraints/l2l_parallel_constraint.h
         constraints/p2p_distance_constraint.cpp
         constraints/p2p_distance_constraint.h
-        objects/plane.cpp
-        objects/plane.h
         objects/circle.cpp
         objects/circle.h
-        objects/ellipse.cpp
-        objects/ellipse.h
-        objects/ellipsoid.cpp
-        objects/ellipsoid.h
-        objects/sphere.cpp
-        objects/sphere.h
-        objects/solid_body.cpp
-        objects/solid_body.h
         constraints/p2l_distance_constraint.cpp
         constraints/p2l_distance_constraint.h
         types.h
         constraints/l2l_distance_constraint.cpp
         constraints/l2l_distance_constraint.h
+        constraints/l2l_perpendicular_constraint.cpp
+        constraints/l2l_perpendicular_constraint.h
 )
 
 # Link wxWidgets libraries
