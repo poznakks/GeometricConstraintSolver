@@ -6,6 +6,7 @@
 
 #include "types.h"
 #include "constraints/constraint.h"
+#include "constraints/l2l_distance_constraint.h"
 #include "constraints/l2l_parallel_constraint.h"
 #include "constraints/p2p_horizontal_constraint.h"
 #include "constraints/p2l_distance_constraint.h"
@@ -23,7 +24,8 @@ enum class ConstraintType {
     P2PVertical,
     P2PDistance,
     P2LDistance,
-    L2LParallel
+    L2LParallel,
+    L2LDistance
 };
 
 inline wxString ConstraintTypeToString(const ConstraintType type) {
@@ -33,6 +35,7 @@ inline wxString ConstraintTypeToString(const ConstraintType type) {
         case ConstraintType::P2PDistance: return "Point to point distance";
         case ConstraintType::P2LDistance: return "Point to line distance";
         case ConstraintType::L2LParallel: return "Lines parallel";
+        case ConstraintType::L2LDistance: return "Line to Line Distance";
         default: return "Unknown";
     }
 }
@@ -43,8 +46,66 @@ inline ConstraintType ConstraintTypeFromString(const wxString& str) {
     if (str == "Point to point distance") return ConstraintType::P2PDistance;
     if (str == "Point to line distance") return ConstraintType::P2LDistance;
     if (str == "Lines parallel") return ConstraintType::L2LParallel;
+    if (str == "Line to Line Distance") return ConstraintType::L2LDistance;
     throw std::invalid_argument("Unknown constraint string: " + std::string(str.mb_str()));
 }
+
+class L2LDistanceConstraintDialog final : public wxDialog {
+public:
+    L2LDistanceConstraintDialog(wxWindow* parent, const VectorLineSharedPtr& lines)
+        : wxDialog(parent, wxID_ANY, "Add Line-to-Line Distance Constraint") {
+
+        auto* sizer = new wxBoxSizer(wxVERTICAL);
+
+        // Первая прямая
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select first line:"), 0, wxALL, 5);
+        line1Choice = new wxChoice(this, wxID_ANY);
+        sizer->Add(line1Choice, 0, wxALL | wxEXPAND, 5);
+
+        // Вторая прямая
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select second line:"), 0, wxALL, 5);
+        line2Choice = new wxChoice(this, wxID_ANY);
+        sizer->Add(line2Choice, 0, wxALL | wxEXPAND, 5);
+
+        // Заполнение списка прямых
+        for (size_t i = 0; i < lines.size(); ++i) {
+            wxString label = wxString::Format("Line %d (%.1f, %.1f dir %.2f, %.2f)",
+                                              static_cast<int>(i),
+                                              lines[i]->point.x, lines[i]->point.y,
+                                              lines[i]->direction.x, lines[i]->direction.y);
+            line1Choice->Append(label);
+            line2Choice->Append(label);
+        }
+
+        // Поле ввода расстояния
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Target distance:"), 0, wxALL, 5);
+        distanceCtrl = new wxTextCtrl(this, wxID_ANY);
+        sizer->Add(distanceCtrl, 0, wxALL | wxEXPAND, 5);
+
+        // Кнопки OK / Cancel
+        auto* buttonSizer = new wxStdDialogButtonSizer();
+        buttonSizer->AddButton(new wxButton(this, wxID_OK));
+        buttonSizer->AddButton(new wxButton(this, wxID_CANCEL));
+        buttonSizer->Realize();
+
+        sizer->Add(buttonSizer, 0, wxALL | wxALIGN_CENTER, 10);
+        SetSizerAndFit(sizer);
+    }
+
+    int GetFirstIndex() const { return line1Choice->GetSelection(); }
+    int GetSecondIndex() const { return line2Choice->GetSelection(); }
+
+    double GetDistance() const {
+        double value = 0;
+        distanceCtrl->GetValue().ToDouble(&value);
+        return value;
+    }
+
+private:
+    wxChoice* line1Choice;
+    wxChoice* line2Choice;
+    wxTextCtrl* distanceCtrl;
+};
 
 class L2LParallelConstraintDialog final : public wxDialog {
 public:
@@ -527,7 +588,8 @@ private:
             ConstraintType::P2PVertical,
             ConstraintType::P2PDistance,
             ConstraintType::P2LDistance,
-            ConstraintType::L2LParallel
+            ConstraintType::L2LParallel,
+            ConstraintType::L2LDistance
         };
 
         wxArrayString choices;
@@ -557,7 +619,7 @@ private:
                 wxMessageBox("At least one line and one point are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
                 return;
             }
-        } else if (selected == ConstraintType::L2LParallel) {
+        } else if (selected == ConstraintType::L2LParallel || selected == ConstraintType::L2LDistance) {
             if (lines.size() < 2) {
                 wxMessageBox("At least two lines are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
                 return;
@@ -569,13 +631,27 @@ private:
             }
         }
 
-        if (selected == ConstraintType::L2LParallel) {
+        if (selected == ConstraintType::L2LDistance) {
+            L2LDistanceConstraintDialog dialog(this, lines);
+            if (dialog.ShowModal() == wxID_OK) {
+                int i1 = dialog.GetFirstIndex();
+                int i2 = dialog.GetSecondIndex();
+                double d = dialog.GetDistance();
+                if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || i1 == i2 || d <= 0) {
+                    wxMessageBox("Invalid input for distance constraint.", "Invalid Selection", wxOK | wxICON_WARNING);
+                    return;
+                }
+                auto line1 = canvas->GetLines()[i1];
+                auto line2 = canvas->GetLines()[i2];
+                canvas->AddConstraint(std::make_unique<L2LDistanceConstraint>(line1, line2, d));
+            }
+        } else if (selected == ConstraintType::L2LParallel) {
             L2LParallelConstraintDialog dialog(this, lines);
             if (dialog.ShowModal() == wxID_OK) {
                 int i1 = dialog.GetFirstIndex();
                 int i2 = dialog.GetSecondIndex();
                 if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || i1 == i2) {
-                    wxMessageBox("Please select two different points.", "Invalid Selection", wxOK | wxICON_WARNING);
+                    wxMessageBox("Please select two different lines.", "Invalid Selection", wxOK | wxICON_WARNING);
                     return;
                 }
                 auto line1 = canvas->GetLines()[i1];

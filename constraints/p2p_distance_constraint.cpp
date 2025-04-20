@@ -3,9 +3,6 @@
 //
 
 #include "p2p_distance_constraint.h"
-
-#include <utility>
-
 #include "../types.h"
 
 P2PDistanceConstraint::P2PDistanceConstraint(PointSharedPtr p1, PointSharedPtr p2, const double targetDistance)
