@@ -17,6 +17,7 @@
 enum ID {
     ID_Point = 1,
     ID_Line,
+    ID_Circle,
     ID_Constraint
 };
 
@@ -306,6 +307,57 @@ private:
     wxChoice* choice2;
 };
 
+class CircleCoordinateDialog final : public wxDialog {
+public:
+    CircleCoordinateDialog(wxWindow* parent, const wxString& title)
+        : wxDialog(parent, wxID_ANY, title, wxDefaultPosition, wxSize(280, 180)) {
+        auto* sizer = new wxBoxSizer(wxVERTICAL);
+
+        // Labels and input fields
+        auto* xLabel = new wxStaticText(this, wxID_ANY, "Center X:");
+        xInput = new wxTextCtrl(this, wxID_ANY);
+
+        auto* yLabel = new wxStaticText(this, wxID_ANY, "Center Y:");
+        yInput = new wxTextCtrl(this, wxID_ANY);
+
+        auto* rLabel = new wxStaticText(this, wxID_ANY, "Radius:");
+        rInput = new wxTextCtrl(this, wxID_ANY);
+
+        // Grid layout
+        auto* grid = new wxFlexGridSizer(4, 2, 5, 5);
+        grid->Add(xLabel, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT);
+        grid->Add(xInput, 1, wxEXPAND);
+        grid->Add(yLabel, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT);
+        grid->Add(yInput, 1, wxEXPAND);
+        grid->Add(rLabel, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT);
+        grid->Add(rInput, 1, wxEXPAND);
+
+        grid->AddGrowableCol(1, 1);
+        sizer->Add(grid, 1, wxALL | wxEXPAND, 10);
+
+        // OK / Cancel
+        sizer->Add(CreateButtonSizer(wxOK | wxCANCEL), 0, wxALIGN_CENTER | wxALL, 10);
+        SetSizerAndFit(sizer);
+    }
+
+    double GetX() const {
+        double val; xInput->GetValue().ToDouble(&val); return val;
+    }
+
+    double GetY() const {
+        double val; yInput->GetValue().ToDouble(&val); return val;
+    }
+
+    double GetRadius() const {
+        double val; rInput->GetValue().ToDouble(&val); return val;
+    }
+
+private:
+    wxTextCtrl* xInput;
+    wxTextCtrl* yInput;
+    wxTextCtrl* rInput;
+};
+
 // Dialog to input coordinates for a point or line
 class CoordinateDialog final : public wxDialog {
 public:
@@ -372,6 +424,11 @@ public:
         Refresh();  // Redraw the canvas
     }
 
+    void AddCircle(const CircleSharedPtr& gcs_circle) {
+        circles.push_back(gcs_circle);
+        Refresh();  // Redraw the canvas
+    }
+
     void AddConstraint(ConstraintUniquePtr constraint) {
         constraints.push_back(std::move(constraint));
         ApplyConstraints(); // сразу применить при добавлении
@@ -379,16 +436,19 @@ public:
 
     VectorPointSharedPtr GetPoints() const { return points; }
     VectorLineSharedPtr GetLines() const { return lines; }
+    VectorCircleSharedPtr GetCircles() const { return circles; }
 
 private:
-    VectorPointSharedPtr points;  // Points from GCS
-    VectorLineSharedPtr lines;    // Lines from GCS
+    VectorPointSharedPtr points;
+    VectorLineSharedPtr lines;
+    VectorCircleSharedPtr circles;
     VectorConstraintUniquePtr constraints;
     bool isDragging = false;
     bool isRotating = false;
     unsigned long rotatingLineIndex = -1;
     unsigned long draggingPointIndex = -1;  // To track the point being dragged
     unsigned long draggingLineIndex = -1;   // To track the line being dragged
+    unsigned long draggingCircleIndex = -1;
     wxPoint lastMousePos;
 
     void ApplyConstraints() const {
@@ -414,6 +474,14 @@ private:
             wxPoint p1(static_cast<int>(line->point.x - line->direction.x * length), static_cast<int>(line->point.y - line->direction.y * length));
             wxPoint p2(static_cast<int>(line->point.x + line->direction.x * length), static_cast<int>(line->point.y + line->direction.y * length));
             dc.DrawLine(p1, p2);
+        }
+
+        dc.SetBrush(*wxTRANSPARENT_BRUSH);
+        dc.SetPen(*wxRED_PEN);
+        for (const auto& circle : circles) {
+            const int radius = static_cast<int>(circle->radius);
+            const wxPoint center(static_cast<int>(circle->center.x), static_cast<int>(circle->center.y));
+            dc.DrawCircle(center, radius);  // Это теперь будет окружность, не залитый круг
         }
     }
 
@@ -455,6 +523,22 @@ private:
                 return;
             }
         }
+
+        // Check if a circle is clicked (on the border)
+        for (size_t i = 0; i < circles.size(); ++i) {
+            const auto& c = circles[i];
+            double dx = c->center.x - pos.x;
+            double dy = c->center.y - pos.y;
+            double dist = std::sqrt(dx * dx + dy * dy);
+
+            // Допустим, рамка окружности толщиной 5px
+            if (std::abs(dist - c->radius) <= 5.0) {
+                isDragging = true;
+                draggingCircleIndex = i;
+                lastMousePos = pos;
+                return;
+            }
+        }
     }
 
     void OnLeftDoubleClick(const wxMouseEvent& event) {
@@ -487,6 +571,12 @@ private:
             if (draggingLineIndex != -1) {
                 lines[draggingLineIndex]->point.x += dx;
                 lines[draggingLineIndex]->point.y += dy;
+            }
+
+            // If dragging a circle
+            if (draggingCircleIndex != -1) {
+                circles[draggingCircleIndex]->center.x += dx;
+                circles[draggingCircleIndex]->center.y += dy;
             }
         }
 
@@ -525,6 +615,7 @@ private:
             isDragging = false;
             draggingPointIndex = -1;
             draggingLineIndex = -1;  // Stop dragging
+            draggingCircleIndex = -1;
         }
         if (isRotating) {
             isRotating = false;
@@ -540,11 +631,13 @@ public:
         wxToolBar* toolbar = wxFrame::CreateToolBar(wxTB_TEXT | wxTB_NOICONS);
         toolbar->AddTool(ID_Point, "Point", wxNullBitmap);
         toolbar->AddTool(ID_Line, "Line", wxNullBitmap);
+        toolbar->AddTool(ID_Circle, "Circle", wxNullBitmap);
         toolbar->AddTool(ID_Constraint, "Constraint", wxNullBitmap);
         toolbar->Realize();
 
         Bind(wxEVT_TOOL, &MyFrame::OnPoint, this, ID_Point);
         Bind(wxEVT_TOOL, &MyFrame::OnLine, this, ID_Line);
+        Bind(wxEVT_TOOL, &MyFrame::OnCircle, this, ID_Circle);
         Bind(wxEVT_TOOL, &MyFrame::OnConstraint, this, ID_Constraint);
 
         canvas = new MyCanvas(this);
@@ -586,6 +679,22 @@ private:
         }
     }
 
+    void OnCircle(wxCommandEvent&) {
+        CircleCoordinateDialog dlg(this, "Enter Circle Center and Radius");
+        if (dlg.ShowModal() == wxID_OK) {
+            double x = dlg.GetX();
+            double y = dlg.GetY();
+            double r = dlg.GetRadius();
+            if (r <= 0) {
+                wxMessageBox("Radius must be positive", "Invalid Input", wxOK | wxICON_WARNING);
+                return;
+            }
+
+            const Circle circle(Point(x, y), r);
+            canvas->AddCircle(std::make_shared<Circle>(circle));
+        }
+    }
+
     void OnConstraint(wxCommandEvent&) {
         const std::vector types = {
             ConstraintType::P2PHorizontal,
@@ -618,6 +727,7 @@ private:
         ConstraintType selected = *it;
         auto points = canvas->GetPoints();
         auto lines = canvas->GetLines();
+        auto circles = canvas->GetCircles();
 
         if (selected == ConstraintType::P2LDistance) {
             if (points.empty() || lines.empty()) {

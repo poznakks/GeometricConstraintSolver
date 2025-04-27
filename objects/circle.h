@@ -4,24 +4,19 @@
 
 #ifndef CIRCLE_H
 #define CIRCLE_H
+#include "line.h"
 #include "point.h"
 
 class Circle final {
 public:
-    Point center;     // Центр окружности
-    double radius;    // Радиус окружности
-    Point normal;     // Нормальный вектор для 3D
+    Circle(const Point& center, double radius, const Point& normal = Point());
 
-    Circle(const Point& center, double radius, const Point& normal);
+    bool isPointOnCircle(const Point& point) const;
+    bool isLineTangent(const Line& line) const;
 
-    // Расстояние от точки до окружности
-    double distanceTo(const Point& p) const;
-
-    // Расстояние между двумя окружностями
-    double distanceTo(const Circle& other) const;
-
-    friend std::ostream& operator<<(std::ostream& os, const Circle& circle);
+    Point center;
+    double radius;
+    Point normal; // единичный вектор, нормаль к плоскости круга
 };
-
 
 #endif //CIRCLE_H

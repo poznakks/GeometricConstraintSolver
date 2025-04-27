@@ -7,37 +7,30 @@
 #include "plane.h"
 
 Circle::Circle(const Point& center, double radius, const Point& normal)
-    : center(center), radius(radius), normal(normal) {}
+    : center(center), radius(radius), normal(normal.normalized()) {}
 
-// Расстояние от точки до окружности
-double Circle::distanceTo(const Point& p) const {
-    const Plane plane(center, normal);
-    const double distanceToPlane = plane.distanceTo(p);
-    const auto projection = Point(p.x - distanceToPlane * normal.x,
-                                  p.y - distanceToPlane * normal.y,
-                                  p.z - distanceToPlane * normal.z);
-    const double distanceToCenter = center.distanceTo(projection);
-    return std::abs(distanceToCenter - radius);
+bool Circle::isPointOnCircle(const Point& point) const {
+    Point vec = point - center;
+    double distToPlane = std::abs(vec.dot(normal));
+    if (distToPlane > 1e-6) return false;
+
+    double radialDist = vec.length();
+    return std::abs(radialDist - radius) < 1e-6;
 }
 
-// Расстояние между двумя окружностями
-double Circle::distanceTo(const Circle& other) const {
-    // Проверяем, находятся ли окружности на одной плоскости
-    const Plane thisPlane(center, normal);
+bool Circle::isLineTangent(const Line& line) const {
+    // Прямая должна лежать в плоскости круга
+    double directionDot = std::abs(line.direction.dot(normal));
+    if (directionDot > 1e-6) return false; // не в плоскости
 
-    // Если окружности лежат на одной плоскости (или практически на одной)
-    if (const double distanceToOtherPlane = thisPlane.distanceTo(other.center); std::abs(distanceToOtherPlane) < 1e-6) {
-        // Тогда расстояние между центрами окружностей минус их радиусы
-        const double centerDistance = center.distanceTo(other.center);
-        return std::max(0.0, centerDistance - (radius + other.radius));
-    } else {
-        // Если окружности находятся на разных плоскостях
-        return distanceToOtherPlane;
-    }
-}
+    double pointDot = std::abs((line.point - center).dot(normal));
+    if (pointDot > 1e-6) return false; // не в плоскости
 
-std::ostream& operator<<(std::ostream& os, const Circle& circle) {
-    os << "Circle(Center: " << circle.center << ", Radius: " << circle.radius
-       << ", Normal: " << circle.normal << ")";
-    return os;
+    // Найдём кратчайшее расстояние от центра до прямой
+    Point vecToLine = line.point - center;
+    Point proj = line.direction.normalized();
+    Point closest = line.point - proj * (vecToLine.dot(proj));
+
+    double dist = (closest - center).length();
+    return std::abs(dist - radius) < 1e-6;
 }
