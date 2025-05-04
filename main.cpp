@@ -453,6 +453,7 @@ private:
 
     void ApplyConstraints() const {
         for (const auto& constraint : constraints) {
+            std::cout << "applying constraints" << std::endl;
             constraint->apply();  // Применить ограничение
         }
     }
@@ -556,6 +557,8 @@ private:
     }
 
     void OnMouseMove(const wxMouseEvent& event) {
+        if (!isDragging && !isRotating) { return; }
+
         const wxPoint pos = event.GetPosition();
         if (isDragging) {
             const int dx = pos.x - lastMousePos.x;
