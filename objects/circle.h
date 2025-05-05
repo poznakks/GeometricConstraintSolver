@@ -7,7 +7,7 @@
 #include "line.h"
 #include "point.h"
 
-class Circle final {
+class Circle final: public GeometricObject {
 public:
     Circle(const Point& center, double radius, const Point& normal = Point());
 

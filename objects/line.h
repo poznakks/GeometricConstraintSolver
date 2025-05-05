@@ -6,7 +6,7 @@
 #define LINE_H
 #include "point.h"
 
-class Line final {
+class Line final: public GeometricObject {
 public:
     Point point;     // Точка на прямой
     Point direction; // Направляющий вектор

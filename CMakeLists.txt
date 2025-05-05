@@ -35,6 +35,7 @@ add_executable(GeometricConstraintSolver main.cpp
         constraints/l2l_distance_constraint.h
         constraints/l2l_perpendicular_constraint.cpp
         constraints/l2l_perpendicular_constraint.h
+        constraints/geometric_object.h
 )
 
 # Link wxWidgets libraries

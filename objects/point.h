@@ -7,7 +7,9 @@
 
 #include <iostream>
 
-class Point final {
+#include "../constraints/geometric_object.h"
+
+class Point final: public GeometricObject {
 public:
     double x, y, z;
     explicit Point(double x = 0, double y = 0, double z = 0);

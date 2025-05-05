@@ -7,7 +7,7 @@
 #include "line.h"
 #include "point.h"
 
-class Plane final {
+class Plane final: public GeometricObject {
 public:
     Point center;        // Точка на плоскости (центр)
     Point normal;        // Нормальный вектор
