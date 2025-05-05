@@ -23,4 +23,10 @@ using VectorLineSharedPtr = std::vector<std::shared_ptr<Line>>;
 using VectorCircleSharedPtr = std::vector<std::shared_ptr<Circle>>;
 using VectorConstraintSharedPtr = std::vector<ConstraintSharedPtr>;
 
+template<typename T>
+using VectorSharedPtr = std::vector<std::shared_ptr<T>>;
+
+template<typename T>
+concept Geometric = std::derived_from<T, GeometricObject>;
+
 #endif //TYPES_H

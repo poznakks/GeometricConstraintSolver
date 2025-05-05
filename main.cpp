@@ -424,31 +424,12 @@ public:
         ApplyConstraints(); // сразу применить при добавлении
     }
 
-    VectorPointSharedPtr GetPoints() const {
-        VectorPointSharedPtr result;
+    template<Geometric T>
+    VectorSharedPtr<T> GetObjectsOfType() const {
+        VectorSharedPtr<T> result;
         for (const auto& obj : objects) {
-            if (auto point = std::dynamic_pointer_cast<Point>(obj)) {
-                result.push_back(point);
-            }
-        }
-        return result;
-    }
-
-    VectorLineSharedPtr GetLines() const {
-        VectorLineSharedPtr result;
-        for (const auto& obj : objects) {
-            if (auto line = std::dynamic_pointer_cast<Line>(obj)) {
-                result.push_back(line);
-            }
-        }
-        return result;
-    }
-
-    VectorCircleSharedPtr GetCircles() const {
-        VectorCircleSharedPtr result;
-        for (const auto& obj : objects) {
-            if (auto circle = std::dynamic_pointer_cast<Circle>(obj)) {
-                result.push_back(circle);
+            if (auto casted = std::dynamic_pointer_cast<T>(obj)) {
+                result.push_back(casted);
             }
         }
         return result;
@@ -477,14 +458,18 @@ private:
         dc.Clear();
         dc.SetPen(*wxBLACK_PEN);
 
+        const auto points = GetObjectsOfType<Point>();
+        const auto lines = GetObjectsOfType<Line>();
+        const auto circles = GetObjectsOfType<Circle>();
+
         // Draw points
-        for (const auto& point : GetPoints()) {
+        for (const auto& point : points) {
             dc.DrawCircle(wxPoint(static_cast<int>(point->x), static_cast<int>(point->y)), 5);  // GCS points mapped to canvas points
         }
 
         dc.SetPen(*wxBLUE_PEN);
         // Draw lines
-        for (const auto& line : GetLines()) {
+        for (const auto& line : lines) {
             constexpr int length = 1000;
             wxPoint p1(static_cast<int>(line->point.x - line->direction.x * length), static_cast<int>(line->point.y - line->direction.y * length));
             wxPoint p2(static_cast<int>(line->point.x + line->direction.x * length), static_cast<int>(line->point.y + line->direction.y * length));
@@ -493,7 +478,7 @@ private:
 
         dc.SetBrush(*wxTRANSPARENT_BRUSH);
         dc.SetPen(*wxRED_PEN);
-        for (const auto& circle : GetCircles()) {
+        for (const auto& circle : circles) {
             const int radius = static_cast<int>(circle->radius);
             const wxPoint center(static_cast<int>(circle->center.x), static_cast<int>(circle->center.y));
             dc.DrawCircle(center, radius);  // Это теперь будет окружность, не залитый круг
@@ -519,9 +504,9 @@ private:
         draggingPointIndex = -1;
         draggingLineIndex = -1;
 
-        const auto points = GetPoints();
-        const auto lines = GetLines();
-        const auto circles = GetCircles();
+        const auto points = GetObjectsOfType<Point>();
+        const auto lines = GetObjectsOfType<Line>();
+        const auto circles = GetObjectsOfType<Circle>();
 
         // Check if a point is clicked
         for (size_t i = 0; i < points.size(); ++i) {
@@ -563,9 +548,9 @@ private:
     void OnLeftDoubleClick(const wxMouseEvent& event) {
         const wxPoint pos = event.GetPosition();
 
-        const auto points = GetPoints();
-        const auto lines = GetLines();
-        const auto circles = GetCircles();
+        const auto points = GetObjectsOfType<Point>();
+        const auto lines = GetObjectsOfType<Line>();
+        const auto circles = GetObjectsOfType<Circle>();
 
         for (size_t i = 0; i < lines.size(); ++i) {
             if (IsNearLine(lines[i], pos)) {
@@ -581,9 +566,9 @@ private:
     void OnMouseMove(const wxMouseEvent& event) {
         if (!isDragging && !isRotating) { return; }
 
-        const auto points = GetPoints();
-        const auto lines = GetLines();
-        const auto circles = GetCircles();
+        const auto points = GetObjectsOfType<Point>();
+        const auto lines = GetObjectsOfType<Line>();
+        const auto circles = GetObjectsOfType<Circle>();
 
         const wxPoint pos = event.GetPosition();
         if (isDragging) {
@@ -754,9 +739,9 @@ private:
         }
 
         ConstraintType selected = *it;
-        auto points = canvas->GetPoints();
-        auto lines = canvas->GetLines();
-        auto circles = canvas->GetCircles();
+        const auto points = canvas->GetObjectsOfType<Point>();
+        const auto lines = canvas->GetObjectsOfType<Line>();
+        const auto circles = canvas->GetObjectsOfType<Circle>();
 
         if (selected == ConstraintType::P2LDistance) {
             if (points.empty() || lines.empty()) {
@@ -785,8 +770,8 @@ private:
                     wxMessageBox("Invalid input for distance constraint.", "Invalid Selection", wxOK | wxICON_WARNING);
                     return;
                 }
-                auto line1 = canvas->GetLines()[i1];
-                auto line2 = canvas->GetLines()[i2];
+                auto line1 = lines[i1];
+                auto line2 = lines[i2];
                 canvas->AddConstraint(std::make_shared<L2LDistanceConstraint>(line1, line2, d));
             }
         } else if (selected == ConstraintType::L2LParallel || selected == ConstraintType::L2LPerpendicular) {
@@ -798,8 +783,8 @@ private:
                     wxMessageBox("Please select two different lines.", "Invalid Selection", wxOK | wxICON_WARNING);
                     return;
                 }
-                auto line1 = canvas->GetLines()[i1];
-                auto line2 = canvas->GetLines()[i2];
+                auto line1 = lines[i1];
+                auto line2 = lines[i2];
                 if (selected == ConstraintType::L2LParallel) {
                     canvas->AddConstraint(std::make_shared<L2LParallelConstraint>(line1, line2));
                 } else {
