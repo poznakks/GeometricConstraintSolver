@@ -3,7 +3,7 @@
 #include "objects/point.h"
 #include "objects/line.h"
 #include <cmath>
-#include <map>
+#include <unordered_set>
 
 #include "types.h"
 #include "constraints/constraint.h"
@@ -409,7 +409,7 @@ struct ConstraintEdge {
     ObjectSharedPtr object;
     ConstraintSharedPtr constraint;
 };
-using Graph = std::map<ObjectSharedPtr, std::vector<ConstraintEdge>>;
+using Graph = std::unordered_map<ObjectSharedPtr, std::vector<ConstraintEdge>>;
 
 class MyCanvas final : public wxPanel {
 public:
@@ -459,10 +459,22 @@ private:
     wxPoint lastMousePos;
 
     void ApplyConstraints() const {
-        for (const auto& [object, constraintEdges] : graph) {
-            std::cout << "applying constraints" << std::endl;
-            for (const auto& constraintEdge : constraintEdges) {
-                constraintEdge.constraint->apply();  // Применить ограничение
+        std::unordered_set<ObjectSharedPtr> visited;
+        for (const auto& [object, _] : graph) {
+            if (!visited.contains(object)) {
+                DFS(object, visited);
+            }
+        }
+    }
+
+    void DFS(const ObjectSharedPtr& current, std::unordered_set<ObjectSharedPtr>& visited) const {
+        visited.insert(current);
+        const auto& edges = graph.at(current);
+        for (const auto& edge : edges) {
+            edge.constraint->apply();  // Применить ограничение на этом ребре
+            const auto& neighbor = edge.object;
+            if (!visited.contains(neighbor)) {
+                DFS(neighbor, visited);
             }
         }
     }
