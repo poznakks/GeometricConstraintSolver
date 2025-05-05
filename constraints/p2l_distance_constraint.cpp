@@ -49,3 +49,11 @@ void P2LDistanceConstraint::apply() {
         point->move(nx * delta, ny * delta, nz * delta);
     }
 }
+
+ObjectSharedPtr P2LDistanceConstraint::getObjectA() {
+    return line;
+}
+
+ObjectSharedPtr P2LDistanceConstraint::getObjectB() {
+    return point;
+}

@@ -23,3 +23,11 @@ void P2PDistanceConstraint::apply() {
         );
     }
 }
+
+ObjectSharedPtr P2PDistanceConstraint::getObjectA() {
+    return point1;
+}
+
+ObjectSharedPtr P2PDistanceConstraint::getObjectB() {
+    return point2;
+}

@@ -17,3 +17,11 @@ void P2PHorizontalConstraint::apply() {
         point2->z = point1->z;
     }
 }
+
+ObjectSharedPtr P2PHorizontalConstraint::getObjectA() {
+    return point1;
+}
+
+ObjectSharedPtr P2PHorizontalConstraint::getObjectB() {
+    return point2;
+}

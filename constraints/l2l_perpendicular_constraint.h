@@ -12,6 +12,8 @@ public:
     L2LPerpendicularConstraint(LineSharedPtr l1, LineSharedPtr l2);
     bool isSatisfied() const override;
     void apply() override;
+    ObjectSharedPtr getObjectA() override;
+    ObjectSharedPtr getObjectB() override;
 
 private:
     LineSharedPtr line1;

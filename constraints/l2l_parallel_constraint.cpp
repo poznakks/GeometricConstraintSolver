@@ -25,3 +25,11 @@ void L2LParallelConstraint::apply() {
         line2->direction = line1->direction;
     }
 }
+
+ObjectSharedPtr L2LParallelConstraint::getObjectA() {
+    return line1;
+}
+
+ObjectSharedPtr L2LParallelConstraint::getObjectB() {
+    return line2;
+}

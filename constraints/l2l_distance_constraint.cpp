@@ -3,7 +3,6 @@
 //
 
 #include "l2l_distance_constraint.h"
-#include <wx/geometry.h>
 
 L2LDistanceConstraint::L2LDistanceConstraint(LineSharedPtr line1, LineSharedPtr line2, const double distance)
     : line1(std::move(line1)), line2(std::move(line2)), distance(distance) {}
@@ -37,4 +36,12 @@ bool L2LDistanceConstraint::isSatisfied() const {
     double actualDistance = perpendicular.length();
 
     return parallel && std::abs(actualDistance - distance) < 1e-3;
+}
+
+ObjectSharedPtr L2LDistanceConstraint::getObjectA() {
+    return line1;
+}
+
+ObjectSharedPtr L2LDistanceConstraint::getObjectB() {
+    return line2;
 }

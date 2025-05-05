@@ -3,6 +3,7 @@
 #include "objects/point.h"
 #include "objects/line.h"
 #include <cmath>
+#include <map>
 
 #include "types.h"
 #include "constraints/constraint.h"
@@ -404,6 +405,12 @@ private:
     wxTextCtrl* yInput;
 };
 
+struct ConstraintEdge {
+    ObjectSharedPtr object;
+    ConstraintSharedPtr constraint;
+};
+using Graph = std::map<ObjectSharedPtr, std::vector<ConstraintEdge>>;
+
 class MyCanvas final : public wxPanel {
 public:
     explicit MyCanvas(wxWindow* parent) : wxPanel(parent, wxID_ANY) {
@@ -414,21 +421,25 @@ public:
         Bind(wxEVT_LEFT_DCLICK, &MyCanvas::OnLeftDoubleClick, this);
     }
 
-    void AddObject(const ObjectSharedPtr& gcs_object) {
-        objects.push_back(gcs_object);
+    void AddObject(const ObjectSharedPtr& object) {
+        graph[object] = {};
         Refresh();  // Redraw the canvas
     }
 
     void AddConstraint(const ConstraintSharedPtr& constraint) {
-        constraints.push_back(constraint);
-        ApplyConstraints(); // сразу применить при добавлении
+        auto rawPtr = constraint.get();
+        auto objA = rawPtr->getObjectA(); // возвращает GeometricObjectSharedPtr
+        auto objB = rawPtr->getObjectB();
+
+        graph[objA].push_back({objB, constraint});
+        graph[objB].push_back({objA, constraint});
     }
 
     template<Geometric T>
     VectorSharedPtr<T> GetObjectsOfType() const {
         VectorSharedPtr<T> result;
-        for (const auto& obj : objects) {
-            if (auto casted = std::dynamic_pointer_cast<T>(obj)) {
+        for (const auto& [object, _] : graph) {
+            if (auto casted = std::dynamic_pointer_cast<T>(object)) {
                 result.push_back(casted);
             }
         }
@@ -436,8 +447,9 @@ public:
     }
 
 private:
-    VectorObjectSharedPtr objects;
-    VectorConstraintSharedPtr constraints;
+    Graph graph;
+    // VectorObjectSharedPtr objects;
+    // VectorConstraintSharedPtr constraints;
     bool isDragging = false;
     bool isRotating = false;
     unsigned long rotatingLineIndex = -1;
@@ -447,9 +459,11 @@ private:
     wxPoint lastMousePos;
 
     void ApplyConstraints() const {
-        for (const auto& constraint : constraints) {
+        for (const auto& [object, constraintEdges] : graph) {
             std::cout << "applying constraints" << std::endl;
-            constraint->apply();  // Применить ограничение
+            for (const auto& constraintEdge : constraintEdges) {
+                constraintEdge.constraint->apply();  // Применить ограничение
+            }
         }
     }
 

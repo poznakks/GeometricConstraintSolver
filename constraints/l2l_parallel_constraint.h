@@ -7,13 +7,14 @@
 
 #include "constraint.h"
 #include "../types.h"
-#include "../objects//line.h"
 
 class L2LParallelConstraint final : public Constraint {
 public:
     L2LParallelConstraint(LineSharedPtr l1, LineSharedPtr l2);
     bool isSatisfied() const override;
     void apply() override;
+    ObjectSharedPtr getObjectA() override;
+    ObjectSharedPtr getObjectB() override;
 
 private:
     LineSharedPtr line1;

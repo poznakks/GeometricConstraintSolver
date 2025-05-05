@@ -7,13 +7,14 @@
 
 #include "constraint.h"
 #include "../types.h"
-#include "../objects/line.h"
 
 class P2LDistanceConstraint final : public Constraint {
 public:
     P2LDistanceConstraint(PointSharedPtr p, LineSharedPtr l, double targetDistance);
     bool isSatisfied() const override;
     void apply() override;
+    ObjectSharedPtr getObjectA() override;
+    ObjectSharedPtr getObjectB() override;
 
 private:
     PointSharedPtr point;

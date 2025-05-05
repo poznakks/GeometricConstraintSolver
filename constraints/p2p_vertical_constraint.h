@@ -14,6 +14,8 @@ public:
     P2PVerticalConstraint(PointSharedPtr p1, PointSharedPtr p2);
     bool isSatisfied() const override;
     void apply() override;
+    ObjectSharedPtr getObjectA() override;
+    ObjectSharedPtr getObjectB() override;
 
 private:
     PointSharedPtr point1;

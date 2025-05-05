@@ -23,3 +23,11 @@ void L2LPerpendicularConstraint::apply() {
     Point newDir(-dir1.y, dir1.x);
     line2->direction = newDir.normalized();
 }
+
+ObjectSharedPtr L2LPerpendicularConstraint::getObjectA() {
+    return line1;
+}
+
+ObjectSharedPtr L2LPerpendicularConstraint::getObjectB() {
+    return line2;
+}
