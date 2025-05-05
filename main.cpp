@@ -414,35 +414,49 @@ public:
         Bind(wxEVT_LEFT_DCLICK, &MyCanvas::OnLeftDoubleClick, this);
     }
 
-    void AddPoint(const PointSharedPtr& gcs_point) {
-        points.push_back(gcs_point);
+    void AddObject(const ObjectSharedPtr& gcs_object) {
+        objects.push_back(gcs_object);
         Refresh();  // Redraw the canvas
     }
 
-    void AddLine(const LineSharedPtr& gcs_line) {
-        lines.push_back(gcs_line);
-        Refresh();  // Redraw the canvas
-    }
-
-    void AddCircle(const CircleSharedPtr& gcs_circle) {
-        circles.push_back(gcs_circle);
-        Refresh();  // Redraw the canvas
-    }
-
-    void AddConstraint(ConstraintUniquePtr constraint) {
-        constraints.push_back(std::move(constraint));
+    void AddConstraint(const ConstraintSharedPtr& constraint) {
+        constraints.push_back(constraint);
         ApplyConstraints(); // сразу применить при добавлении
     }
 
-    VectorPointSharedPtr GetPoints() const { return points; }
-    VectorLineSharedPtr GetLines() const { return lines; }
-    VectorCircleSharedPtr GetCircles() const { return circles; }
+    VectorPointSharedPtr GetPoints() const {
+        VectorPointSharedPtr result;
+        for (const auto& obj : objects) {
+            if (auto point = std::dynamic_pointer_cast<Point>(obj)) {
+                result.push_back(point);
+            }
+        }
+        return result;
+    }
+
+    VectorLineSharedPtr GetLines() const {
+        VectorLineSharedPtr result;
+        for (const auto& obj : objects) {
+            if (auto line = std::dynamic_pointer_cast<Line>(obj)) {
+                result.push_back(line);
+            }
+        }
+        return result;
+    }
+
+    VectorCircleSharedPtr GetCircles() const {
+        VectorCircleSharedPtr result;
+        for (const auto& obj : objects) {
+            if (auto circle = std::dynamic_pointer_cast<Circle>(obj)) {
+                result.push_back(circle);
+            }
+        }
+        return result;
+    }
 
 private:
-    VectorPointSharedPtr points;
-    VectorLineSharedPtr lines;
-    VectorCircleSharedPtr circles;
-    VectorConstraintUniquePtr constraints;
+    VectorObjectSharedPtr objects;
+    VectorConstraintSharedPtr constraints;
     bool isDragging = false;
     bool isRotating = false;
     unsigned long rotatingLineIndex = -1;
@@ -464,13 +478,13 @@ private:
         dc.SetPen(*wxBLACK_PEN);
 
         // Draw points
-        for (const auto& point : points) {
+        for (const auto& point : GetPoints()) {
             dc.DrawCircle(wxPoint(static_cast<int>(point->x), static_cast<int>(point->y)), 5);  // GCS points mapped to canvas points
         }
 
         dc.SetPen(*wxBLUE_PEN);
         // Draw lines
-        for (const auto& line : lines) {
+        for (const auto& line : GetLines()) {
             constexpr int length = 1000;
             wxPoint p1(static_cast<int>(line->point.x - line->direction.x * length), static_cast<int>(line->point.y - line->direction.y * length));
             wxPoint p2(static_cast<int>(line->point.x + line->direction.x * length), static_cast<int>(line->point.y + line->direction.y * length));
@@ -479,7 +493,7 @@ private:
 
         dc.SetBrush(*wxTRANSPARENT_BRUSH);
         dc.SetPen(*wxRED_PEN);
-        for (const auto& circle : circles) {
+        for (const auto& circle : GetCircles()) {
             const int radius = static_cast<int>(circle->radius);
             const wxPoint center(static_cast<int>(circle->center.x), static_cast<int>(circle->center.y));
             dc.DrawCircle(center, radius);  // Это теперь будет окружность, не залитый круг
@@ -504,6 +518,10 @@ private:
         isDragging = false;
         draggingPointIndex = -1;
         draggingLineIndex = -1;
+
+        const auto points = GetPoints();
+        const auto lines = GetLines();
+        const auto circles = GetCircles();
 
         // Check if a point is clicked
         for (size_t i = 0; i < points.size(); ++i) {
@@ -545,6 +563,10 @@ private:
     void OnLeftDoubleClick(const wxMouseEvent& event) {
         const wxPoint pos = event.GetPosition();
 
+        const auto points = GetPoints();
+        const auto lines = GetLines();
+        const auto circles = GetCircles();
+
         for (size_t i = 0; i < lines.size(); ++i) {
             if (IsNearLine(lines[i], pos)) {
                 isRotating = true;
@@ -558,6 +580,10 @@ private:
 
     void OnMouseMove(const wxMouseEvent& event) {
         if (!isDragging && !isRotating) { return; }
+
+        const auto points = GetPoints();
+        const auto lines = GetLines();
+        const auto circles = GetCircles();
 
         const wxPoint pos = event.GetPosition();
         if (isDragging) {
@@ -584,7 +610,7 @@ private:
         }
 
         if (isRotating && rotatingLineIndex != -1) {
-            const auto line = lines[rotatingLineIndex];
+            const auto& line = lines[rotatingLineIndex];
             const Point origin(line->point.x, line->point.y);
 
             double dx1 = lastMousePos.x - origin.x;
@@ -657,7 +683,7 @@ private:
 
             // Create a GCS point and add it to the canvas
             const Point point(x, y);
-            canvas->AddPoint(std::make_shared<Point>(point));
+            canvas->AddObject(std::make_shared<Point>(point));
         }
     }
 
@@ -677,7 +703,7 @@ private:
                 const Point endPoint(x2, y2);
                 const Line line = Line::fromTwoPoints(startPoint, endPoint);
 
-                canvas->AddLine(std::make_shared<Line>(line));
+                canvas->AddObject(std::make_shared<Line>(line));
             }
         }
     }
@@ -694,7 +720,7 @@ private:
             }
 
             const Circle circle(Point(x, y), r);
-            canvas->AddCircle(std::make_shared<Circle>(circle));
+            canvas->AddObject(std::make_shared<Circle>(circle));
         }
     }
 
@@ -761,7 +787,7 @@ private:
                 }
                 auto line1 = canvas->GetLines()[i1];
                 auto line2 = canvas->GetLines()[i2];
-                canvas->AddConstraint(std::make_unique<L2LDistanceConstraint>(line1, line2, d));
+                canvas->AddConstraint(std::make_shared<L2LDistanceConstraint>(line1, line2, d));
             }
         } else if (selected == ConstraintType::L2LParallel || selected == ConstraintType::L2LPerpendicular) {
             L2LConstraintDialog dialog(this, lines);
@@ -775,9 +801,9 @@ private:
                 auto line1 = canvas->GetLines()[i1];
                 auto line2 = canvas->GetLines()[i2];
                 if (selected == ConstraintType::L2LParallel) {
-                    canvas->AddConstraint(std::make_unique<L2LParallelConstraint>(line1, line2));
+                    canvas->AddConstraint(std::make_shared<L2LParallelConstraint>(line1, line2));
                 } else {
-                    canvas->AddConstraint(std::make_unique<L2LPerpendicularConstraint>(line1, line2));
+                    canvas->AddConstraint(std::make_shared<L2LPerpendicularConstraint>(line1, line2));
                 }
             }
         } else if (selected == ConstraintType::P2PDistance) {
@@ -792,7 +818,7 @@ private:
                     return;
                 }
 
-                auto constraint = std::make_unique<P2PDistanceConstraint>(points[i1], points[i2], d);
+                auto constraint = std::make_shared<P2PDistanceConstraint>(points[i1], points[i2], d);
                 canvas->AddConstraint(std::move(constraint));
                 canvas->Refresh();
             }
@@ -808,7 +834,7 @@ private:
                     return;
                 }
 
-                auto constraint = std::make_unique<P2LDistanceConstraint>(points[i1], lines[i2], d);
+                auto constraint = std::make_shared<P2LDistanceConstraint>(points[i1], lines[i2], d);
                 canvas->AddConstraint(std::move(constraint));
                 canvas->Refresh();
             }
@@ -824,10 +850,10 @@ private:
                 }
 
                 if (selected == ConstraintType::P2PHorizontal) {
-                    auto constraint = std::make_unique<P2PHorizontalConstraint>(points[i1], points[i2]);
+                    auto constraint = std::make_shared<P2PHorizontalConstraint>(points[i1], points[i2]);
                     canvas->AddConstraint(std::move(constraint));
                 } else if (selected == ConstraintType::P2PVertical) {
-                    auto constraint = std::make_unique<P2PVerticalConstraint>(points[i1], points[i2]);
+                    auto constraint = std::make_shared<P2PVerticalConstraint>(points[i1], points[i2]);
                     canvas->AddConstraint(std::move(constraint));
                 }
 

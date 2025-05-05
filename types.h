@@ -10,14 +10,17 @@
 #include "objects/point.h"
 #include "objects/line.h"
 
+
+using ObjectSharedPtr = std::shared_ptr<GeometricObject>;
 using PointSharedPtr = std::shared_ptr<Point>;
 using LineSharedPtr  = std::shared_ptr<Line>;
 using CircleSharedPtr  = std::shared_ptr<Circle>;
-using ConstraintUniquePtr  = std::unique_ptr<Constraint>;
+using ConstraintSharedPtr  = std::shared_ptr<Constraint>;
 
+using VectorObjectSharedPtr = std::vector<ObjectSharedPtr>;
 using VectorPointSharedPtr = std::vector<std::shared_ptr<Point>>;
 using VectorLineSharedPtr = std::vector<std::shared_ptr<Line>>;
 using VectorCircleSharedPtr = std::vector<std::shared_ptr<Circle>>;
-using VectorConstraintUniquePtr = std::vector<std::unique_ptr<Constraint>>;
+using VectorConstraintSharedPtr = std::vector<ConstraintSharedPtr>;
 
 #endif //TYPES_H
