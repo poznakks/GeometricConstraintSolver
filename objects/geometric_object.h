@@ -8,6 +8,11 @@
 class GeometricObject {
 public:
     virtual ~GeometricObject() = default;
+    bool isDirty() const { return dirty; }
+    void setDirty(const bool d) { dirty = d; }
+
+protected:
+    bool dirty = false;
 };
 
 #endif //GEOMETRIC_OBJECT_H

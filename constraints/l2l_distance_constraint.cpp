@@ -18,6 +18,7 @@ void L2LDistanceConstraint::apply() {
 
     Point correction = perpendicular.normalized() * distance;
     line2->point = line1->point + correction;
+    line2->setDirty(true);
 }
 
 bool L2LDistanceConstraint::isSatisfied() const {

@@ -7,7 +7,7 @@
 
 #include <iostream>
 
-#include "../constraints/geometric_object.h"
+#include "geometric_object.h"
 
 class Point final: public GeometricObject {
 public:

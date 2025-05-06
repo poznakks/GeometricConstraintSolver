@@ -6,7 +6,7 @@
 #define CONSTRAINT_H
 #include <memory>
 
-#include "geometric_object.h"
+#include "../objects/geometric_object.h"
 
 class Constraint {
 public:

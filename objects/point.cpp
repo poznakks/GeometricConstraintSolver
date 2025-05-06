@@ -16,6 +16,7 @@ void Point::move(const double dx, const double dy, const double dz) {
     x += dx;
     y += dy;
     z += dz;
+    setDirty(true);
 }
 
 double Point::length() const {

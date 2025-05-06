@@ -23,6 +23,7 @@ bool L2LParallelConstraint::isSatisfied() const {
 void L2LParallelConstraint::apply() {
     if (!isSatisfied()) {
         line2->direction = line1->direction;
+        line2->setDirty(true);
     }
 }
 

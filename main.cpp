@@ -433,7 +433,9 @@ public:
 
         graph[objA].push_back({objB, constraint});
         graph[objB].push_back({objA, constraint});
-        ApplyConstraints();
+        objA->setDirty(true);
+        objB->setDirty(true);
+        ApplyConstraintsFrom(objA);
         Refresh();
     }
 
@@ -458,25 +460,20 @@ private:
     unsigned long draggingCircleIndex = -1;
     wxPoint lastMousePos;
 
-    void ApplyConstraints() const {
+    void ApplyConstraintsFrom(const ObjectSharedPtr& start) const {
         std::unordered_set<ObjectSharedPtr> visited;
-        for (const auto& [object, _] : graph) {
-            if (!visited.contains(object)) {
-                DFS(object, visited);
-            }
-        }
+        DFS(start, visited);
     }
 
     void DFS(const ObjectSharedPtr& current, std::unordered_set<ObjectSharedPtr>& visited) const {
+        if (!current->isDirty() || visited.contains(current)) { return; }
         visited.insert(current);
         const auto& edges = graph.at(current);
         for (const auto& edge : edges) {
             edge.constraint->apply();  // Применить ограничение на этом ребре
-            const auto& neighbor = edge.object;
-            if (!visited.contains(neighbor)) {
-                DFS(neighbor, visited);
-            }
+            DFS(edge.object, visited);
         }
+        current->setDirty(false);
     }
 
     void OnPaint(wxPaintEvent&) {
@@ -605,18 +602,24 @@ private:
             if (draggingPointIndex != -1) {
                 points[draggingPointIndex]->x += dx;
                 points[draggingPointIndex]->y += dy;
+                points[draggingPointIndex]->setDirty(true);
+                ApplyConstraintsFrom(points[draggingPointIndex]);
             }
 
             // If dragging a line
             if (draggingLineIndex != -1) {
                 lines[draggingLineIndex]->point.x += dx;
                 lines[draggingLineIndex]->point.y += dy;
+                lines[draggingLineIndex]->setDirty(true);
+                ApplyConstraintsFrom(lines[draggingLineIndex]);
             }
 
             // If dragging a circle
             if (draggingCircleIndex != -1) {
                 circles[draggingCircleIndex]->center.x += dx;
                 circles[draggingCircleIndex]->center.y += dy;
+                circles[draggingCircleIndex]->setDirty(true);
+                ApplyConstraintsFrom(circles[draggingCircleIndex]);
             }
         }
 
@@ -644,9 +647,10 @@ private:
 
             dir.x = newX;
             dir.y = newY;
+            lines[rotatingLineIndex]->setDirty(true);
+            ApplyConstraintsFrom(lines[rotatingLineIndex]);
         }
         lastMousePos = pos;
-        ApplyConstraints();
         Refresh();  // Redraw canvas with updated point or line position
     }
 

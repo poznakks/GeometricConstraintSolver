@@ -15,6 +15,7 @@ void P2PVerticalConstraint::apply() {
     if (!isSatisfied()) {
         point2->x = point1->x;
         point2->z = point1->z;
+        point2->setDirty(true);
     }
 }
 

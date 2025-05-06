@@ -15,6 +15,7 @@ void P2PHorizontalConstraint::apply() {
     if (!isSatisfied()) {
         point2->y = point1->y;
         point2->z = point1->z;
+        point2->setDirty(true);
     }
 }
 

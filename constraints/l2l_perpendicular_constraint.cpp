@@ -22,6 +22,7 @@ void L2LPerpendicularConstraint::apply() {
     // Вектор, перпендикулярный dir1
     Point newDir(-dir1.y, dir1.x);
     line2->direction = newDir.normalized();
+    line2->setDirty(true);
 }
 
 ObjectSharedPtr L2LPerpendicularConstraint::getObjectA() {
