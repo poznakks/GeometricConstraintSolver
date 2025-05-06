@@ -515,7 +515,7 @@ private:
     static bool IsNearLine(const LineSharedPtr& line, const wxPoint& pos) {
         constexpr double threshold = 5.0;
         const wxPoint p1(static_cast<int>(line->point.x), static_cast<int>(line->point.y));
-        const wxPoint p2(static_cast<int>(line->point.x + line->direction.x * 10), static_cast<int>(line->point.y + line->direction.y * 10));
+        const wxPoint p2(static_cast<int>(line->point.x + line->direction.x * 1000), static_cast<int>(line->point.y + line->direction.y * 1000));
 
         // Calculate the distance from the click to the line using a point-line distance formula
         const double distance = std::abs((p2.y - p1.y) * pos.x - (p2.x - p1.x) * pos.y + p2.x * p1.y - p2.y * p1.x) /
