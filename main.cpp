@@ -427,12 +427,14 @@ public:
     }
 
     void AddConstraint(const ConstraintSharedPtr& constraint) {
-        auto rawPtr = constraint.get();
-        auto objA = rawPtr->getObjectA(); // возвращает GeometricObjectSharedPtr
-        auto objB = rawPtr->getObjectB();
+        const auto rawPtr = constraint.get();
+        const auto objA = rawPtr->getObjectA(); // возвращает GeometricObjectSharedPtr
+        const auto objB = rawPtr->getObjectB();
 
         graph[objA].push_back({objB, constraint});
         graph[objB].push_back({objA, constraint});
+        ApplyConstraints();
+        Refresh();
     }
 
     template<Geometric T>
@@ -448,8 +450,6 @@ public:
 
 private:
     Graph graph;
-    // VectorObjectSharedPtr objects;
-    // VectorConstraintSharedPtr constraints;
     bool isDragging = false;
     bool isRotating = false;
     unsigned long rotatingLineIndex = -1;
