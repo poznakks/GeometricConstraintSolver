@@ -14,6 +14,8 @@
 #include "constraints/p2l_distance_constraint.h"
 #include "constraints/p2p_vertical_constraint.h"
 #include "constraints/p2p_distance_constraint.h"
+#include "solvers/graph_solver.h"
+#include "solvers/solver.h"
 
 enum ID {
     ID_Point = 1,
@@ -405,15 +407,10 @@ private:
     wxTextCtrl* yInput;
 };
 
-struct ConstraintEdge {
-    ObjectSharedPtr object;
-    ConstraintSharedPtr constraint;
-};
-using Graph = std::unordered_map<ObjectSharedPtr, std::vector<ConstraintEdge>>;
-
 class MyCanvas final : public wxPanel {
 public:
-    explicit MyCanvas(wxWindow* parent) : wxPanel(parent, wxID_ANY) {
+    explicit MyCanvas(wxWindow* parent, std::unique_ptr<Solver> solver) : wxPanel(parent, wxID_ANY) {
+        this->solver = std::move(solver);
         Bind(wxEVT_PAINT, &MyCanvas::OnPaint, this);
         Bind(wxEVT_LEFT_DOWN, &MyCanvas::OnLeftClick, this);
         Bind(wxEVT_MOTION, &MyCanvas::OnMouseMove, this);
@@ -422,36 +419,22 @@ public:
     }
 
     void AddObject(const ObjectSharedPtr& object) {
-        graph[object] = {};
+        solver->AddObject(object);
         Refresh();  // Redraw the canvas
     }
 
     void AddConstraint(const ConstraintSharedPtr& constraint) {
-        const auto rawPtr = constraint.get();
-        const auto objA = rawPtr->getObjectA(); // возвращает GeometricObjectSharedPtr
-        const auto objB = rawPtr->getObjectB();
-
-        graph[objA].push_back({objB, constraint});
-        graph[objB].push_back({objA, constraint});
-        objA->setDirty(true);
-        objB->setDirty(true);
-        ApplyConstraintsFrom(objA);
+        solver->AddConstraint(constraint);
         Refresh();
     }
 
     template<Geometric T>
     VectorSharedPtr<T> GetObjectsOfType() const {
-        VectorSharedPtr<T> result;
-        for (const auto& [object, _] : graph) {
-            if (auto casted = std::dynamic_pointer_cast<T>(object)) {
-                result.push_back(casted);
-            }
-        }
-        return result;
+        return solver->GetObjectsOfType<T>();
     }
 
 private:
-    Graph graph;
+    std::unique_ptr<Solver> solver;
     bool isDragging = false;
     bool isRotating = false;
     unsigned long rotatingLineIndex = -1;
@@ -459,22 +442,6 @@ private:
     unsigned long draggingLineIndex = -1;   // To track the line being dragged
     unsigned long draggingCircleIndex = -1;
     wxPoint lastMousePos;
-
-    void ApplyConstraintsFrom(const ObjectSharedPtr& start) const {
-        std::unordered_set<ObjectSharedPtr> visited;
-        DFS(start, visited);
-    }
-
-    void DFS(const ObjectSharedPtr& current, std::unordered_set<ObjectSharedPtr>& visited) const {
-        if (!current->isDirty() || visited.contains(current)) { return; }
-        visited.insert(current);
-        const auto& edges = graph.at(current);
-        for (const auto& edge : edges) {
-            edge.constraint->apply();  // Применить ограничение на этом ребре
-            DFS(edge.object, visited);
-        }
-        current->setDirty(false);
-    }
 
     void OnPaint(wxPaintEvent&) {
         wxPaintDC dc(this);
@@ -603,7 +570,7 @@ private:
                 points[draggingPointIndex]->x += dx;
                 points[draggingPointIndex]->y += dy;
                 points[draggingPointIndex]->setDirty(true);
-                ApplyConstraintsFrom(points[draggingPointIndex]);
+                solver->ApplyConstraintsFrom(points[draggingPointIndex]);
             }
 
             // If dragging a line
@@ -611,7 +578,7 @@ private:
                 lines[draggingLineIndex]->point.x += dx;
                 lines[draggingLineIndex]->point.y += dy;
                 lines[draggingLineIndex]->setDirty(true);
-                ApplyConstraintsFrom(lines[draggingLineIndex]);
+                solver->ApplyConstraintsFrom(lines[draggingLineIndex]);
             }
 
             // If dragging a circle
@@ -619,7 +586,7 @@ private:
                 circles[draggingCircleIndex]->center.x += dx;
                 circles[draggingCircleIndex]->center.y += dy;
                 circles[draggingCircleIndex]->setDirty(true);
-                ApplyConstraintsFrom(circles[draggingCircleIndex]);
+                solver->ApplyConstraintsFrom(circles[draggingCircleIndex]);
             }
         }
 
@@ -648,7 +615,7 @@ private:
             dir.x = newX;
             dir.y = newY;
             lines[rotatingLineIndex]->setDirty(true);
-            ApplyConstraintsFrom(lines[rotatingLineIndex]);
+            solver->ApplyConstraintsFrom(lines[rotatingLineIndex]);
         }
         lastMousePos = pos;
         Refresh();  // Redraw canvas with updated point or line position
@@ -671,7 +638,7 @@ private:
 
 class MyFrame final : public wxFrame {
 public:
-    MyFrame() : wxFrame(nullptr, wxID_ANY, "Geometric Constraint Visualizer", wxDefaultPosition, wxSize(800, 600), wxDEFAULT_FRAME_STYLE & ~(wxRESIZE_BORDER | wxMAXIMIZE_BOX)) {
+    explicit MyFrame(std::unique_ptr<Solver> solver) : wxFrame(nullptr, wxID_ANY, "Geometric Constraint Visualizer", wxDefaultPosition, wxSize(800, 600), wxDEFAULT_FRAME_STYLE & ~(wxRESIZE_BORDER | wxMAXIMIZE_BOX)) {
         wxToolBar* toolbar = wxFrame::CreateToolBar(wxTB_TEXT | wxTB_NOICONS);
         toolbar->AddTool(ID_Point, "Point", wxNullBitmap);
         toolbar->AddTool(ID_Line, "Line", wxNullBitmap);
@@ -684,7 +651,7 @@ public:
         Bind(wxEVT_TOOL, &MyFrame::OnCircle, this, ID_Circle);
         Bind(wxEVT_TOOL, &MyFrame::OnConstraint, this, ID_Constraint);
 
-        canvas = new MyCanvas(this);
+        canvas = new MyCanvas(this, std::move(solver));
     }
 
 private:
@@ -881,7 +848,7 @@ private:
 class MyApp final : public wxApp {
 public:
     bool OnInit() override {
-        auto* frame = new MyFrame();
+        auto* frame = new MyFrame(std::make_unique<GraphSolver>());
         frame->Show(true);
         return true;
     }
