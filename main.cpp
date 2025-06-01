@@ -6,6 +6,8 @@
 #include <unordered_set>
 
 #include "types.h"
+#include "constraints/c2l_distance_constraint.h"
+#include "constraints/c2p_distance_constraint.h"
 #include "constraints/constraint.h"
 #include "constraints/l2l_distance_constraint.h"
 #include "constraints/l2l_parallel_constraint.h"
@@ -14,6 +16,7 @@
 #include "constraints/p2l_distance_constraint.h"
 #include "constraints/p2p_vertical_constraint.h"
 #include "constraints/p2p_distance_constraint.h"
+#include "solvers/array_solver.h"
 #include "solvers/graph_solver.h"
 #include "solvers/solver.h"
 
@@ -31,7 +34,9 @@ enum class ConstraintType {
     P2LDistance,
     L2LParallel,
     L2LDistance,
-    L2LPerpendicular
+    L2LPerpendicular,
+    C2LDistance,
+    C2PDistance
 };
 
 inline wxString ConstraintTypeToString(const ConstraintType type) {
@@ -43,6 +48,8 @@ inline wxString ConstraintTypeToString(const ConstraintType type) {
         case ConstraintType::L2LParallel: return "Lines parallel";
         case ConstraintType::L2LDistance: return "Line to Line Distance";
         case ConstraintType::L2LPerpendicular: return "Line-to-Line Perpendicular";
+        case ConstraintType::C2LDistance: return "Circle-to-Line Distance";
+        case ConstraintType::C2PDistance: return "Circle-to-Point Distance";
         default: return "Unknown";
     }
 }
@@ -55,6 +62,8 @@ inline ConstraintType ConstraintTypeFromString(const wxString& str) {
     if (str == "Lines parallel") return ConstraintType::L2LParallel;
     if (str == "Line to Line Distance") return ConstraintType::L2LDistance;
     if (str == "Line-to-Line Perpendicular") return ConstraintType::L2LPerpendicular;
+    if (str == "Circle-to-Line Distance") return ConstraintType::C2LDistance;
+    if (str == "Circle-to-Point Distance") return ConstraintType::C2PDistance;
     throw std::invalid_argument("Unknown constraint string: " + std::string(str.mb_str()));
 }
 
@@ -215,6 +224,121 @@ public:
 private:
     wxChoice* pointChoice;
     wxChoice* lineChoice;
+    wxTextCtrl* distanceCtrl;
+};
+
+class C2LDistanceConstraintDialog final : public wxDialog {
+public:
+    C2LDistanceConstraintDialog(wxWindow* parent, const VectorCircleSharedPtr& circles, const VectorLineSharedPtr& lines)
+        : wxDialog(parent, wxID_ANY, "Add Circle-to-Line Constraint") {
+
+        auto* sizer = new wxBoxSizer(wxVERTICAL);
+
+        // Выбор точки
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select point:"), 0, wxALL, 5);
+        circleChoice = new wxChoice(this, wxID_ANY);
+        sizer->Add(circleChoice, 0, wxALL | wxEXPAND, 5);
+
+        // Заполнение списка кругов
+        for (size_t i = 0; i < circles.size(); ++i) {
+            wxString label = wxString::Format("Circle %d (%.1f, %.1f, %.1f)", static_cast<int>(i), circles[i]->center.x, circles[i]->center.y, circles[i]->radius);
+            circleChoice->Append(label);
+        }
+
+        // Выбор прямой
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select line:"), 0, wxALL, 5);
+        lineChoice = new wxChoice(this, wxID_ANY);
+        sizer->Add(lineChoice, 0, wxALL | wxEXPAND, 5);
+
+        // Заполнение списка прямых
+        for (size_t i = 0; i < lines.size(); ++i) {
+            wxString label = wxString::Format("Line %d (%.1f, %.1f dir %.2f, %.2f)",
+                                              static_cast<int>(i),
+                                              lines[i]->point.x, lines[i]->point.y,
+                                              lines[i]->direction.x, lines[i]->direction.y);
+            lineChoice->Append(label);
+        }
+
+        // Поле ввода расстояния
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Target distance:"), 0, wxALL, 5);
+        distanceCtrl = new wxTextCtrl(this, wxID_ANY);
+        sizer->Add(distanceCtrl, 0, wxALL | wxEXPAND, 5);
+
+        // Кнопки OK / Cancel
+        auto* buttonSizer = new wxStdDialogButtonSizer();
+        buttonSizer->AddButton(new wxButton(this, wxID_OK));
+        buttonSizer->AddButton(new wxButton(this, wxID_CANCEL));
+        buttonSizer->Realize();
+
+        sizer->Add(buttonSizer, 0, wxALL | wxALIGN_CENTER, 10);
+        SetSizerAndFit(sizer);
+    }
+
+    int GetCircleIndex() const { return circleChoice->GetSelection(); }
+    int GetLineIndex() const { return lineChoice->GetSelection(); }
+
+    double GetDistance() const {
+        double value = 0;
+        distanceCtrl->GetValue().ToDouble(&value);
+        return value;
+    }
+
+private:
+    wxChoice* circleChoice;
+    wxChoice* lineChoice;
+    wxTextCtrl* distanceCtrl;
+};
+
+class C2PDistanceConstraintDialog final : public wxDialog {
+public:
+    C2PDistanceConstraintDialog(wxWindow* parent, const VectorPointSharedPtr& points, const VectorCircleSharedPtr& circles)
+        : wxDialog(parent, wxID_ANY, "Add Distance Constraint") {
+
+        auto* sizer = new wxBoxSizer(wxVERTICAL);
+
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select first point:"), 0, wxALL, 5);
+        choice1 = new wxChoice(this, wxID_ANY);
+        sizer->Add(choice1, 0, wxALL | wxEXPAND, 5);
+
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Select second point:"), 0, wxALL, 5);
+        choice2 = new wxChoice(this, wxID_ANY);
+        sizer->Add(choice2, 0, wxALL | wxEXPAND, 5);
+
+        for (size_t i = 0; i < points.size(); ++i) {
+            wxString label = wxString::Format("Point %d (%.1f, %.1f)", static_cast<int>(i), points[i]->x, points[i]->y);
+            choice1->Append(label);
+        }
+
+        for (size_t i = 0; i < circles.size(); ++i) {
+            wxString label = wxString::Format("Circle %d (%.1f, %.1f, %.1f)", static_cast<int>(i), circles[i]->center.x, circles[i]->center.y, circles[i]->radius);
+            choice2->Append(label);
+        }
+
+        sizer->Add(new wxStaticText(this, wxID_ANY, "Target distance:"), 0, wxALL, 5);
+        distanceCtrl = new wxTextCtrl(this, wxID_ANY);
+        sizer->Add(distanceCtrl, 0, wxALL | wxEXPAND, 5);
+
+        auto* buttonSizer = new wxStdDialogButtonSizer();
+        buttonSizer->AddButton(new wxButton(this, wxID_OK));
+        buttonSizer->AddButton(new wxButton(this, wxID_CANCEL));
+        buttonSizer->Realize();
+
+        sizer->Add(buttonSizer, 0, wxALL | wxALIGN_CENTER, 10);
+        SetSizerAndFit(sizer);
+    }
+
+    int GetFirstIndex() const { return choice1->GetSelection(); }
+    int GetSecondIndex() const { return choice2->GetSelection(); }
+
+    double GetDistance() const {
+        double value = 0;
+        distanceCtrl->GetValue().ToDouble(&value);
+        return value;
+    }
+
+private:
+    wxChoice* choice1;
+    wxChoice* choice2;
     wxTextCtrl* distanceCtrl;
 };
 
@@ -469,9 +593,14 @@ private:
         dc.SetBrush(*wxTRANSPARENT_BRUSH);
         dc.SetPen(*wxRED_PEN);
         for (const auto& circle : circles) {
+            dc.SetBrush(*wxTRANSPARENT_BRUSH);
+            dc.SetPen(*wxRED_PEN);
             const int radius = static_cast<int>(circle->radius);
             const wxPoint center(static_cast<int>(circle->center.x), static_cast<int>(circle->center.y));
             dc.DrawCircle(center, radius);  // Это теперь будет окружность, не залитый круг
+            dc.SetBrush(*wxRED_BRUSH);
+            dc.SetPen(*wxRED_PEN);
+            dc.DrawCircle(center, 3);
         }
     }
 
@@ -714,7 +843,9 @@ private:
             ConstraintType::P2LDistance,
             ConstraintType::L2LParallel,
             ConstraintType::L2LDistance,
-            ConstraintType::L2LPerpendicular
+            ConstraintType::L2LPerpendicular,
+            ConstraintType::C2LDistance,
+            ConstraintType::C2PDistance
         };
 
         wxArrayString choices;
@@ -750,6 +881,16 @@ private:
                 wxMessageBox("At least two lines are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
                 return;
             }
+        } else if (selected == ConstraintType::C2LDistance) {
+            if (circles.empty() || lines.empty()) {
+                wxMessageBox("At least one line and one circle are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
+                return;
+            }
+        } else if (selected == ConstraintType::C2PDistance) {
+            if (circles.empty() || points.empty()) {
+                wxMessageBox("At least one point and one circle are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
+                return;
+            }
         } else {
             if (points.size() < 2) {
                 wxMessageBox("At least two points are required to add a constraint.", "Error", wxOK | wxICON_ERROR);
@@ -763,7 +904,7 @@ private:
                 int i1 = dialog.GetFirstIndex();
                 int i2 = dialog.GetSecondIndex();
                 double d = dialog.GetDistance();
-                if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || i1 == i2 || d <= 0) {
+                if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || i1 == i2 || d < 0) {
                     wxMessageBox("Invalid input for distance constraint.", "Invalid Selection", wxOK | wxICON_WARNING);
                     return;
                 }
@@ -795,7 +936,7 @@ private:
                 int i2 = dialog.GetSecondIndex();
                 double d = dialog.GetDistance();
 
-                if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || i1 == i2 || d <= 0) {
+                if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || i1 == i2 || d < 0) {
                     wxMessageBox("Invalid input for distance constraint.", "Error", wxOK | wxICON_WARNING);
                     return;
                 }
@@ -811,12 +952,44 @@ private:
                 int i2 = dialog.GetLineIndex();
                 double d = dialog.GetDistance();
 
-                if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || d <= 0) {
+                if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || d < 0) {
                     wxMessageBox("Invalid input for distance constraint.", "Error", wxOK | wxICON_WARNING);
                     return;
                 }
 
                 auto constraint = std::make_shared<P2LDistanceConstraint>(points[i1], lines[i2], d);
+                canvas->AddConstraint(std::move(constraint));
+                canvas->Refresh();
+            }
+        } else if (selected == ConstraintType::C2LDistance) {
+            C2LDistanceConstraintDialog dialog(this, circles, lines);
+            if (dialog.ShowModal() == wxID_OK) {
+                int i1 = dialog.GetCircleIndex();
+                int i2 = dialog.GetLineIndex();
+                double d = dialog.GetDistance();
+
+                if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || d < 0) {
+                    wxMessageBox("Invalid input for distance constraint.", "Error", wxOK | wxICON_WARNING);
+                    return;
+                }
+
+                auto constraint = std::make_shared<C2LDistanceConstraint>(circles[i1], lines[i2], d);
+                canvas->AddConstraint(std::move(constraint));
+                canvas->Refresh();
+            }
+        } else if (selected == ConstraintType::C2PDistance) {
+            C2PDistanceConstraintDialog dialog(this, points, circles);
+            if (dialog.ShowModal() == wxID_OK) {
+                int i1 = dialog.GetFirstIndex();
+                int i2 = dialog.GetSecondIndex();
+                double d = dialog.GetDistance();
+
+                if (i1 == wxNOT_FOUND || i2 == wxNOT_FOUND || d < 0) {
+                    wxMessageBox("Invalid input for distance constraint.", "Error", wxOK | wxICON_WARNING);
+                    return;
+                }
+
+                auto constraint = std::make_shared<C2PDistanceConstraint>(circles[i1], points[i2], d);
                 canvas->AddConstraint(std::move(constraint));
                 canvas->Refresh();
             }
@@ -848,7 +1021,7 @@ private:
 class MyApp final : public wxApp {
 public:
     bool OnInit() override {
-        auto* frame = new MyFrame(std::make_unique<GraphSolver>());
+        auto* frame = new MyFrame(std::make_unique<ArraySolver>());
         frame->Show(true);
         return true;
     }

@@ -41,6 +41,10 @@ add_executable(GeometricConstraintSolver main.cpp
         solvers/graph_solver.h
         solvers/array_solver.cpp
         solvers/array_solver.h
+        constraints/c2l_distance_constraint.cpp
+        constraints/c2l_distance_constraint.h
+        constraints/c2p_distance_constraint.cpp
+        constraints/c2p_distance_constraint.h
 )
 
 # Link wxWidgets libraries
